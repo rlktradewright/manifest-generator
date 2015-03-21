@@ -44,8 +44,7 @@ namespace TradeWright.ManifestUtilities
 <assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"" xmlns:asmv3=""urn:schemas-microsoft-com:asm.v3"">
     <assemblyIdentity name=""{0}"" processorArchitecture=""X86"" type=""win32"" version=""{1}"" />
     <description>{2}</description>
-    {3}
-</assembly>", mExeName, mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString(), mDescription, sb.ToString());
+{3}</assembly>", mExeName, mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString(), mDescription, sb.ToString());
         }
 
 
@@ -64,10 +63,10 @@ namespace TradeWright.ManifestUtilities
             switch (lineType)
             {
             case "Description":
-                mDescription = lineContent;
+                mDescription = lineContent.Substring(1, lineContent.Length - 2);
                 break;
             case "ExeName32":
-                mExeName = lineContent;
+                mExeName = lineContent.Substring(1, lineContent.Length - 2);
                 break;
             case "MajorVer":
                 mMajorVersion = Int32.Parse(lineContent);
@@ -130,7 +129,7 @@ namespace TradeWright.ManifestUtilities
 
         private static void outputTypelibFileInfo(StringBuilder sb, string guid, string objectFileName)
         {
-            sb.AppendLine(@"    <file name=""" + objectFileName + @""">");
+            sb.AppendLine(@"    <file name=""" + getFilenameFromPath(objectFileName) + @""">");
             sb.AppendLine(@"        <typelib tlbid=""" + guid + @""" version=""1.0"" flags=""hasdiskimage"" helpdir="""" />");
             sb.AppendLine(@"    </file>");
         }
@@ -138,7 +137,16 @@ namespace TradeWright.ManifestUtilities
         private static void generateDependentAssembly(string objectFileName, StringBuilder sb)
         {
             FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(objectFileName);
-            outputDependentAssembly(sb, versionInfo.FileName, versionInfo.FileVersion, "");
+
+            outputDependentAssembly(sb, getFilenameFromPath(versionInfo.FileName), versionInfo.FileVersion, "");
+        }
+
+        private static string getFilenameFromPath(string filepath)
+        {
+            string pattern = @"^([^\\]+\\)*(([^\.]+\.)+[^\.]+)$";
+            var match = Regex.Match(filepath, pattern);
+            if (!match.Success) throw new InvalidOperationException(String.Format("Filename not found in string {0}", filepath));
+            return match.Groups[2].Value;
         }
 
         private static void outputDependentAssembly(StringBuilder sb, string fileName, string version, string publicKeyToken)
