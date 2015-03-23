@@ -12,7 +12,7 @@ namespace TradeWright.GenerateManifest
     {
         static void Main(string[] args)
         {
-            var gen = new ManifestGenerator();
+            var gen = new ProgramManifestGenerator();
             Console.WriteLine(gen.Generate(args[0], true));
         }
     }

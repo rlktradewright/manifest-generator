@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace TradeWright.ManifestUtilities
 {
-    public class ManifestGenerator
+    public class ProgramManifestGenerator
     {
         private int mMajorVersion;
         private int mMinorVersion;
