@@ -240,8 +240,9 @@ namespace TradeWright.ManifestUtilities
 
             generateTypelibElement(typelibInfo, w);
             generateComClassElements(typelibInfo, w);
-            generateComInterfaceExternalProxyStubElements(typelibInfo, w);
             w.WriteEndElement();
+
+            generateComInterfaceExternalProxyStubElements(typelibInfo, w);
         }
 
         private static void generateTypelibElement(TLI.TypeLibInfo typelibInfo, XmlWriter w)
