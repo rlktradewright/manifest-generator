@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml;
 
 using TLI;
 
@@ -93,37 +94,53 @@ namespace TradeWright.ManifestUtilities
             mObjectFilePath = mProjectPath;
 
             var sb = new StringBuilder();
+            //var memStream = new MemoryStream();
+            var settings = new XmlWriterSettings();
+            settings.Encoding = Encoding.UTF8;
+            settings.Indent = true;
+            settings.IndentChars = "    ";
 
-            processProjectFile(projectFilename, useVersion6CommonControls, sb);
-
-            if (!mType.Equals("Exe"))
+            using (var w = XmlWriter.Create(sb, settings))
             {
-                generateTypesInfo(mObjectFilePath + @"\" + mObjectFileName, sb);
-            }
+                w.WriteStartDocument(true);
+                w.WriteStartElement("assembly", "urn:schemas-microsoft-com:asm.v1");
+                w.WriteAttributeString("manifestVersion","1.0");
+                w.WriteAttributeString("asmv3","urn:schemas-microsoft-com:asm.v3");
 
-            return String.Format(@"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>
-<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"" xmlns:asmv3=""urn:schemas-microsoft-com:asm.v3"">
-    <assemblyIdentity name=""{0}"" processorArchitecture=""X86"" type=""win32"" version=""{1}"" />
-    <description>{2}</description>
-{3}</assembly>", 
-                                mObjectFileName, 
-                                mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString(), 
-                                mDescription, 
-                                sb.ToString());
+                w.WriteStartElement("assemblyIdentity");
+                w.WriteAttributeString("name",mObjectFileName);
+                w.WriteAttributeString("processorArchitecture","X86");
+                w.WriteAttributeString("type","win32");
+                w.WriteAttributeString("version",mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString());
+                w.WriteEndElement();
+
+                w.WriteElementString("description", mDescription);
+
+                processProjectFile(projectFilename, useVersion6CommonControls, w);
+
+                if (!mType.Equals("Exe"))
+                {
+                    generateTypesInfo(mObjectFilePath + @"\" + mObjectFileName, w);
+                }
+
+                w.WriteEndElement();
+                w.Flush();
+            }
+            return sb.ToString();
         }
 
-        private void processProjectFile(String projectFilename, bool useVersion6CommonControls, StringBuilder sb)
+        private void processProjectFile(String projectFilename, bool useVersion6CommonControls, XmlWriter w)
         {
             using (StreamReader sr = new StreamReader(projectFilename))
             {
                 while (!sr.EndOfStream)
                 {
-                    processLine(sr.ReadLine(), sb, useVersion6CommonControls);
+                    processLine(sr.ReadLine(), w, useVersion6CommonControls);
                 }
             }
         }
 
-        private void processLine(string line, StringBuilder sb, bool useVersion6CommonControls)
+        private void processLine(string line, XmlWriter w, bool useVersion6CommonControls)
         {
             if (String.IsNullOrEmpty(line)) return;
 
@@ -132,8 +149,6 @@ namespace TradeWright.ManifestUtilities
 
             var lineType = line.Substring(0, index);
             var lineContent = line.Substring(index + 1, line.Length - index - 1);
-
-            Console.WriteLine(line);
 
             switch (lineType)
             {
@@ -150,13 +165,13 @@ namespace TradeWright.ManifestUtilities
                 mMinorVersion = Int32.Parse(lineContent);
                 break;
             case "Object":
-                processObjectLine(lineContent, sb, useVersion6CommonControls);
+                processObjectLine(lineContent, w, useVersion6CommonControls);
                 break;
             case "Path32":
                 mObjectFilePath = mProjectPath + Utils.trimDelimiters(lineContent);
                 break;
             case "Reference":
-                processReferenceLine(lineContent, sb);
+                processReferenceLine(lineContent, w);
                 break;
             case "RevisionVer":
                 mRevisionVersion = Int32.Parse(lineContent);
@@ -167,7 +182,7 @@ namespace TradeWright.ManifestUtilities
             }
         }
 
-        private static void processObjectLine(string lineContent, StringBuilder sb, bool useVersion6CommonControls)
+        private static void processObjectLine(string lineContent, XmlWriter w, bool useVersion6CommonControls)
         {
             string guid = getGuid(lineContent);
 
@@ -175,16 +190,16 @@ namespace TradeWright.ManifestUtilities
             // for the .ocx if version 6 is required
             if (guid.Equals("{831FDD16-0C5C-11D2-A9FC-0000F8754DA1}", StringComparison.CurrentCultureIgnoreCase))
             {
-                if (useVersion6CommonControls) outputDependentAssembly(sb, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
+                if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
             }
 
             string version = getObjectTypelibVersion(lineContent);
             string objectFileName = getObjectFilename(guid, version);
 
-            generateDependentAssembly(objectFileName, sb);
+            generateDependentAssembly(objectFileName, w);
         }
 
-        private static void processReferenceLine(string lineContent, StringBuilder sb)
+        private static void processReferenceLine(string lineContent, XmlWriter w)
         {
             string guid = getGuid(lineContent);
 
@@ -193,15 +208,15 @@ namespace TradeWright.ManifestUtilities
             // if Microsoft Scripting Runtime, just ignore it since this is never side-by-sided
             if (guid.Equals("{420B2830-E718-11CF-893D-00A0C9054228}", StringComparison.CurrentCultureIgnoreCase)) return;
 
-            string referenceFileName = getReferenceFilename(guid);
+             string referenceFileName = getReferenceFilename(guid);
 
             if (referenceFileName.EndsWith(".tlb"))
             {
-                outputTypelibFileInfo(sb, guid, referenceFileName);
+                outputTypelibFileInfo(w, guid, referenceFileName);
             }
             else
             {
-                generateDependentAssembly(referenceFileName, sb);
+                generateDependentAssembly(referenceFileName, w);
             }
         }
 
@@ -213,47 +228,55 @@ namespace TradeWright.ManifestUtilities
             return lineContent;
         }
 
-        private void generateTypesInfo(string assemblyFilename, StringBuilder sb)
+        private void generateTypesInfo(string assemblyFilename, XmlWriter w)
         {
-            sb.AppendLine(string.Format(@"    <file name=""{0}"">", Utils.getFilenameFromFilePath(assemblyFilename)));
+            w.WriteStartElement("file");
+            w.WriteAttributeString("name",Utils.getFilenameFromFilePath(assemblyFilename));
             var tlia = new TLI.TLIApplication();
             var typelibInfo = tlia.TypeLibInfoFromFile(assemblyFilename);
 
-            generateTypelibElement(typelibInfo, sb);
-            generateComClassElements(typelibInfo, sb);
-            generateComInterfaceExternalProxyStubElements(typelibInfo, sb);
-            sb.AppendLine(@"    </file>");
+            generateTypelibElement(typelibInfo, w);
+            generateComClassElements(typelibInfo, w);
+            generateComInterfaceExternalProxyStubElements(typelibInfo, w);
+            w.WriteEndElement();
         }
 
-        private void generateTypelibElement(TLI.TypeLibInfo typelibInfo, StringBuilder sb)
+        private static void generateTypelibElement(TLI.TypeLibInfo typelibInfo, XmlWriter w)
         {
-            sb.AppendLine(string.Format(@"        <typelib tlbid=""{0}"" version=""{1}"" flags=""{2}"" helpdir="""" />",
-                                        typelibInfo.GUID,
-                                        typelibInfo.MajorVersion.ToString() + "." + typelibInfo.MinorVersion.ToString(),
-                                        Enum.Format(typeof(LIBFLAGS), (LIBFLAGS)typelibInfo.AttributeMask, "G")));
+            w.WriteStartElement("typelib");
+            w.WriteAttributeString("tlbid", typelibInfo.GUID);
+            w.WriteAttributeString("version", typelibInfo.MajorVersion.ToString() + "." + typelibInfo.MinorVersion.ToString());
+            w.WriteAttributeString("flags", Enum.Format(typeof(LIBFLAGS), (LIBFLAGS)typelibInfo.AttributeMask, "G"));
+            w.WriteAttributeString("helpdir", "");
+            w.WriteEndElement();
         }
 
-        private void generateComClassElements(TypeLibInfo typelibInfo, StringBuilder sb)
+        private static void generateComClassElements(TypeLibInfo typelibInfo, XmlWriter w)
         {
             foreach (CoClassInfo c in typelibInfo.CoClasses)
             {
                 if (!String.IsNullOrEmpty((string)Registry.GetValue(@"HKEY_CLASSES_ROOT\ClsId\" + c.GUID + @"\InprocServer32", "ThreadingModel", "")))
                 {
-                    generateComClassElement(typelibInfo, sb, c);
+                    generateComClassElement(typelibInfo, w, c);
                 }
             }
         }
 
-        private static void generateComClassElement(TypeLibInfo typelibInfo, StringBuilder sb, CoClassInfo c)
+        private static void generateComClassElement(TypeLibInfo typelibInfo, XmlWriter w, CoClassInfo c)
         {
+            w.WriteStartElement("comClass");
+            w.WriteAttributeString("clsid", c.GUID);
+            w.WriteAttributeString("tlbid", typelibInfo.GUID);
+
             string progID = (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\ClsId\" + c.GUID + @"\VersionIndependentProgID", "", "");
             if (String.IsNullOrEmpty(progID)) progID = (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\ClsId\" + c.GUID + @"\ProgID", "", "" /*typelibInfo.Name + "." + c.Name*/);
-            
+
             string curVer = (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\" + progID + @"\CurVer", "", "");
-            string progIDAtt = (!String.IsNullOrEmpty(curVer)) ? @" progid=""" + curVer + @"""" : String.Empty;
+
+            if (!String.IsNullOrEmpty(curVer)) w.WriteAttributeString("progid", curVer);
 
             string threadingModel = (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\ClsId\" + c.GUID + @"\InprocServer32", "ThreadingModel", "");
-            string threadingModelAtt = (!String.IsNullOrEmpty(threadingModel)) ? @" threadingModel=""" + threadingModel + @"""" : String.Empty;
+            if (!String.IsNullOrEmpty(threadingModel)) w.WriteAttributeString("threadingModel", threadingModel);
 
             string miscStatus = String.Empty;
             foreach (int i in Enum.GetValues(typeof(MISCSTATUS)))
@@ -262,24 +285,16 @@ namespace TradeWright.ManifestUtilities
                 Int32.TryParse((string)Registry.GetValue(@"HKEY_CLASSES_ROOT\ClsId\" + c.GUID + @"\MiscStatus" + (string)(i > 0 ? @"\" + i.ToString() : String.Empty), "", ""), out flags);
                 if (flags != 0)
                 {
-                    miscStatus = miscStatus + " " + Enum.GetName(typeof(MISCSTATUS), i) + @"=""" + Enum.Format(typeof(OLEMISC), flags, "G") + @"""";
+                    w.WriteAttributeString(Enum.GetName(typeof(MISCSTATUS), i), Enum.Format(typeof(OLEMISC), flags, "G"));
                 }
             }
 
-            sb.Append(String.Format(@"        <comClass clsid=""{0}"" tlbid=""{1}""{2}{3}{4}", c.GUID, typelibInfo.GUID, progIDAtt, threadingModelAtt, miscStatus));
+            if (!progID.Equals(curVer)) w.WriteElementString("progid", progID);
 
-            if (progID.Equals(curVer))
-            {
-                sb.AppendLine(@"/>");
-            }
-            else
-            {
-                sb.AppendLine("\n" + @"            <progid>" + progID + @"</progid>");
-                sb.AppendLine(@"        </comClass>");
-            }
+            w.WriteEndElement();
         }
 
-        private void generateComInterfaceExternalProxyStubElements(TypeLibInfo typelibInfo, StringBuilder sb)
+        private static void generateComInterfaceExternalProxyStubElements(TypeLibInfo typelibInfo, XmlWriter w)
         {
             var interfaces = new Dictionary<string, InterfaceInfo>();
             foreach (CoClassInfo c in typelibInfo.CoClasses)
@@ -292,39 +307,55 @@ namespace TradeWright.ManifestUtilities
 
             foreach (InterfaceInfo i in interfaces.Values)
             {
-                generateComInterfaceExternalProxyStubElement(i, typelibInfo, sb);
+                generateComInterfaceExternalProxyStubElement(i, typelibInfo, w);
             }
         }
 
-        private void generateComInterfaceExternalProxyStubElement(InterfaceInfo i, TypeLibInfo typelibInfo, StringBuilder sb)
+        private static void generateComInterfaceExternalProxyStubElement(InterfaceInfo i, TypeLibInfo typelibInfo, XmlWriter w)
         {
-            sb.AppendLine(String.Format(@"        <comInterfaceExternalProxyStub name=""{0}"" iid=""{1}"" tlbid=""{2}"" proxyStubClsid32=""{3}"" />",
-                                        i.Name,
-                                        i.GUID,
-                                        typelibInfo.GUID,
-                                        (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\Interface\" + i.GUID + @"\ProxyStubClsid32", "", "")));
+            w.WriteStartElement("comInterfaceExternalProxyStub");
+            w.WriteAttributeString("name",i.Name);
+            w.WriteAttributeString("iid", i.GUID);
+            w.WriteAttributeString("tlbid", typelibInfo.GUID);
+            w.WriteAttributeString("proxyStubClsid32", (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\Interface\" + i.GUID + @"\ProxyStubClsid32", "", ""));
+            w.WriteEndElement();
         }
 
-        private static void outputTypelibFileInfo(StringBuilder sb, string guid, string objectFileName)
+        private static void outputTypelibFileInfo(XmlWriter w, string guid, string objectFileName)
         {
-            sb.AppendLine(@"    <file name=""" + Utils.getFilenameFromFilePath(objectFileName) + @""">");
-            sb.AppendLine(@"        <typelib tlbid=""" + guid + @""" version=""1.0"" flags=""hasdiskimage"" helpdir="""" />");
-            sb.AppendLine(@"    </file>");
+            w.WriteStartElement("file");
+            w.WriteAttributeString("name", Utils.getFilenameFromFilePath(objectFileName));
+
+            var tlia = new TLI.TLIApplication();
+            var typelibInfo = tlia.TypeLibInfoFromFile(objectFileName);
+
+            generateTypelibElement(typelibInfo,w);
+
+            w.WriteEndElement();
         }
 
-        private static void generateDependentAssembly(string objectFileName, StringBuilder sb)
+        private static void generateDependentAssembly(string objectFileName, XmlWriter w)
         {
-            outputDependentAssembly(sb, Utils.getFilenameFromFilePath(objectFileName), FileVersionInfo.GetVersionInfo(objectFileName).FileVersion, "");
+            outputDependentAssembly(w, Utils.getFilenameFromFilePath(objectFileName), FileVersionInfo.GetVersionInfo(objectFileName).FileVersion, "");
         }
 
-        private static void outputDependentAssembly(StringBuilder sb, string fileName, string version, string publicKeyToken)
+        private static void outputDependentAssembly(XmlWriter w, string fileName, string version, string publicKeyToken)
         {
             if (publicKeyToken != String.Empty) publicKeyToken = @"publicKeyToken=""" + publicKeyToken + @"""";
-            sb.AppendLine("    <dependency>");
-            sb.AppendLine("        <dependentAssembly>");
-            sb.AppendLine(String.Format(@"            <assemblyIdentity name=""{0}"" processorArchitecture=""X86"" type=""win32"" version=""{1}"" {2}/>", fileName, version, publicKeyToken));
-            sb.AppendLine(@"        </dependentAssembly>");
-            sb.AppendLine(@"    </dependency>");
+
+            w.WriteStartElement("dependency");
+            w.WriteStartElement("dependentAssembly");
+
+            w.WriteStartElement("assemblyIdentity");
+            w.WriteAttributeString("name", fileName);
+            w.WriteAttributeString("processorArchitecture", "X86");
+            w.WriteAttributeString("type", "win32");
+            w.WriteAttributeString("version", version);
+            if (publicKeyToken != String.Empty) w.WriteAttributeString("publicKeyToken", publicKeyToken);
+            w.WriteEndElement();
+
+            w.WriteEndElement();
+            w.WriteEndElement();
         }
 
         private static string getObjectTypelibVersion(string line)
@@ -333,12 +364,7 @@ namespace TradeWright.ManifestUtilities
             var match = Regex.Match(line, pattern);
 
             if (!match.Success) throw new InvalidOperationException(String.Format("No typelib version found in string {0}", line));
-            return numericStringToHex(match.Groups[1].Value) + "." + numericStringToHex(match.Groups[2].Value);
-        }
-
-        private static string numericStringToHex(string value)
-        {
-            return int.Parse(value).ToString("X");
+            return Utils.numericStringToHex(match.Groups[1].Value) + "." + Utils.numericStringToHex(match.Groups[2].Value);
         }
 
         private static string getObjectFilename(string guid, string version)
@@ -348,6 +374,8 @@ namespace TradeWright.ManifestUtilities
 
         private static string getReferenceFilename(string guid)
         {
+            // Note that the Reference= lines in the project file may contain out-of-date
+            // version information. So we look for the latest version
             string fileName = String.Empty;
             using (var regKey = Registry.ClassesRoot.OpenSubKey(@"Typelib\" + guid))
             {

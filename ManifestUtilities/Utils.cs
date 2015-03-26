@@ -25,6 +25,11 @@ namespace TradeWright.ManifestUtilities
             return match.Groups[1].Value;
         }
 
+        internal static string numericStringToHex(string value)
+        {
+            return int.Parse(value).ToString("X");
+        }
+
         internal static string trimDelimiters(string value)
         {
             return value.Substring(1, value.Length - 2);
