@@ -71,8 +71,6 @@ namespace TradeWright.ManifestUtilities
             SUPPORTSMULTILEVELUNDO = 0x200000
         }
 
-
-
         /// <summary>
         /// Generates a manifest for the Visual Basic 6  project
         /// specified in <code>projectFilename</code>.
@@ -93,30 +91,47 @@ namespace TradeWright.ManifestUtilities
             mProjectPath = Utils.getPathFromFilePath(projectFilename);
             mObjectFilePath = mProjectPath;
 
-            var sb = new StringBuilder();
-            //var memStream = new MemoryStream();
-            var settings = new XmlWriterSettings();
-            settings.Encoding = Encoding.UTF8;
-            settings.Indent = true;
-            settings.IndentChars = "    ";
+            var referenceLines = new List<string>();
+            var objectLines = new List<string>();
 
-            using (var w = XmlWriter.Create(sb, settings))
+            processProjectFile(projectFilename,referenceLines,objectLines, useVersion6CommonControls);
+
+            var sb = new StringBuilder();
+            generateManifestXml(useVersion6CommonControls, referenceLines, objectLines, sb);
+            return sb.ToString();
+        }
+
+        private void processProjectFile(String projectFilename, List<string> referenceLines, List<string> objectLines, bool useVersion6CommonControls)
+        {
+            using (StreamReader sr = new StreamReader(projectFilename))
+            {
+                while (!sr.EndOfStream)
+                {
+                    processLine(sr.ReadLine(),referenceLines,objectLines, useVersion6CommonControls);
+                }
+            }
+        }
+
+        private void generateManifestXml(bool useVersion6CommonControls, List<string> referenceLines, List<string> objectLines, StringBuilder sb)
+        {
+            using (var w = XmlWriter.Create(sb, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    " }))
             {
                 w.WriteStartDocument(true);
                 w.WriteStartElement("assembly", "urn:schemas-microsoft-com:asm.v1");
-                w.WriteAttributeString("manifestVersion","1.0");
-                w.WriteAttributeString("asmv3","urn:schemas-microsoft-com:asm.v3");
+                w.WriteAttributeString("manifestVersion", "1.0");
+                w.WriteAttributeString("asmv3", "urn:schemas-microsoft-com:asm.v3");
 
                 w.WriteStartElement("assemblyIdentity");
-                w.WriteAttributeString("name",mObjectFileName);
-                w.WriteAttributeString("processorArchitecture","X86");
-                w.WriteAttributeString("type","win32");
-                w.WriteAttributeString("version",mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString());
+                w.WriteAttributeString("name", mObjectFileName);
+                w.WriteAttributeString("processorArchitecture", "X86");
+                w.WriteAttributeString("type", "win32");
+                w.WriteAttributeString("version", mMajorVersion.ToString() + "." + mMinorVersion.ToString() + ".0." + mRevisionVersion.ToString());
                 w.WriteEndElement();
 
                 w.WriteElementString("description", mDescription);
 
-                processProjectFile(projectFilename, useVersion6CommonControls, w);
+                referenceLines.ForEach(line => processReferenceLine(line, w));
+                objectLines.ForEach(line => processObjectLine(line, w, useVersion6CommonControls));
 
                 if (!mType.Equals("Exe"))
                 {
@@ -126,21 +141,9 @@ namespace TradeWright.ManifestUtilities
                 w.WriteEndElement();
                 w.Flush();
             }
-            return sb.ToString();
         }
 
-        private void processProjectFile(String projectFilename, bool useVersion6CommonControls, XmlWriter w)
-        {
-            using (StreamReader sr = new StreamReader(projectFilename))
-            {
-                while (!sr.EndOfStream)
-                {
-                    processLine(sr.ReadLine(), w, useVersion6CommonControls);
-                }
-            }
-        }
-
-        private void processLine(string line, XmlWriter w, bool useVersion6CommonControls)
+        private void processLine(string line, List<string> referenceLines, List<string> objectLines, bool useVersion6CommonControls)
         {
             if (String.IsNullOrEmpty(line)) return;
 
@@ -165,13 +168,13 @@ namespace TradeWright.ManifestUtilities
                 mMinorVersion = Int32.Parse(lineContent);
                 break;
             case "Object":
-                processObjectLine(lineContent, w, useVersion6CommonControls);
+                objectLines.Add(lineContent);
                 break;
             case "Path32":
                 mObjectFilePath = mProjectPath + Utils.trimDelimiters(lineContent);
                 break;
             case "Reference":
-                processReferenceLine(lineContent, w);
+                referenceLines.Add(lineContent);
                 break;
             case "RevisionVer":
                 mRevisionVersion = Int32.Parse(lineContent);
