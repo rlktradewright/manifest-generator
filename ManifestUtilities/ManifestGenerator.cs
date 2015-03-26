@@ -27,10 +27,10 @@ namespace TradeWright.ManifestUtilities
         [FlagsAttribute]
         private enum LIBFLAGS : short
         {
-            Restricted = 1,
-            Control = 2,
-            Hidden = 4,
-            HasDiskImage = 8
+            restricted = 1,
+            control = 2,
+            hidden = 4,
+            hasDiskImage = 8
         }
 
         // note the capitalisation in these names is important
@@ -47,28 +47,28 @@ namespace TradeWright.ManifestUtilities
         [FlagsAttribute]
         private enum OLEMISC
         {
-            RECOMPOSEONRESIZE = 0x1,
-            ONLYICONIC = 0x2,
-            INSERTNOTREPLACE = 0x4,
-            STATIC = 0x8,
-            CANTLINKINSIDE = 0x10,
-            CANLINKBYOLE1 = 0x20,
-            ISLINKOBJECT = 0x40,
-            INSIDEOUT = 0x80,
-            ACTIVATEWHENVISIBLE = 0x100,
-            RENDERINGISDEVICEINDEPENDENT = 0x200,
-            INVISIBLEATRUNTIME = 0x400,
-            ALWAYSRUN = 0x800,
-            ACTSLIKEBUTTON = 0x1000,
-            ACTSLIKELABEL = 0x2000,
-            NOUIACTIVATE = 0x4000,
-            ALIGNABLE = 0x8000,
-            SIMPLEFRAME = 0x10000,
-            SETCLIENTSITEFIRST = 0x20000,
-            IMEMODE = 0x40000,
-            IGNOREACTIVATEWHENVISIBLE = 0x80000,
-            WANTSTOMENUMERGE = 0x100000,
-            SUPPORTSMULTILEVELUNDO = 0x200000
+            recomposeOnResize = 0x1,
+            onlyIconic = 0x2,
+            insertNotReplace = 0x4,
+            Static = 0x8,
+            cantLinkInside = 0x10,
+            canLinkByOle1 = 0x20,
+            isLinkObject = 0x40,
+            insideOut = 0x80,
+            activateWhenVisible = 0x100,
+            renderingIsDeviceIndependent = 0x200,
+            invisibleAtRuntime = 0x400,
+            alwaysRun = 0x800,
+            actsLikeButton = 0x1000,
+            actsLikeLabel = 0x2000,
+            noUiActivate = 0x4000,
+            alignable = 0x8000,
+            simpleFrame = 0x10000,
+            setClientSiteFirst = 0x20000,
+            imeMode = 0x40000,
+            ignoreActivateWhenVisible = 0x80000,
+            wantsToMenuMerge = 0x100000,
+            supportsMultiLevelUndo = 0x200000
         }
 
         /// <summary>
