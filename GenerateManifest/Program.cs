@@ -13,7 +13,19 @@ namespace TradeWright.GenerateManifest
         static void Main(string[] args)
         {
             var gen = new ManifestGenerator();
-            Console.WriteLine(gen.Generate(args[0], true));
+            if (args[0].ToUpper().StartsWith("/P"))
+            {
+                Console.WriteLine(gen.GenerateFromProject(args[1], true));
+            }
+            else if (args[0].ToUpper().StartsWith("/B"))
+            {
+                Console.WriteLine(gen.GenerateFromObjectFile(args[1]));
+            }
+            else
+            {
+                Console.WriteLine("Invalid arguments");
+            }
+            
         }
     }
 }
