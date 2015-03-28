@@ -72,11 +72,11 @@ namespace TradeWright.ManifestUtilities
         /// The path and Filename of the required executable file.
         /// </param>
         /// <returns></returns>
-        public string GenerateFromObjectFile(string objectFilename, string description = "")
+        public MemoryStream GenerateFromObjectFile(string objectFilename, string description = "")
         {
-            var sb = new StringBuilder();
-            using (var w = XmlWriter.Create(sb, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    " }))
-            {
+            var output = new MemoryStream();
+            using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling=NewLineHandling.Entitize }))
+            { 
                 generateManifestXml(w,
                                     Utils.getFilenameFromFilePath(objectFilename),
                                     FileVersionInfo.GetVersionInfo(objectFilename).FileVersion,
@@ -87,7 +87,7 @@ namespace TradeWright.ManifestUtilities
                                     }
                                     );
             }
-            return sb.ToString();
+            return output;
         }
 
         /// <summary>
@@ -105,7 +105,7 @@ namespace TradeWright.ManifestUtilities
         /// If the program does not use the Windows Common 
         /// Controls then this parameter is ignored.
         /// <returns></returns>
-        public string GenerateFromProject(string projectFilename, bool useVersion6CommonControls)
+        public MemoryStream GenerateFromProject(string projectFilename, bool useVersion6CommonControls)
         {
             string projectPath = Utils.getPathFromFilePath(projectFilename);
             string objectFilePath = String.Empty;
@@ -120,8 +120,8 @@ namespace TradeWright.ManifestUtilities
             processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref version, ref description);
             objectFilePath = projectPath + objectFilePath;
 
-            var sb = new StringBuilder();
-            using (var w = XmlWriter.Create(sb, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    " }))
+            var output = new MemoryStream();
+            using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
             {
                 generateManifestXml(w,
                                     objectFilename,
@@ -135,7 +135,7 @@ namespace TradeWright.ManifestUtilities
                                     }
                                     );
             }
-            return sb.ToString();
+            return output;
         }
 
         private void processProjectFile(
