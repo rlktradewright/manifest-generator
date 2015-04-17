@@ -52,6 +52,10 @@
       <Project>{9a0a6d79-1190-41f3-822c-351a5df0c8b3}</Project>
       <Name>ManifestUtilities</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.vbproj">
+      <Project>{277986d9-ba72-4290-a31b-6d8c28188512}</Project>
+      <Name>Utils</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

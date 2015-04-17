@@ -14,37 +14,25 @@ namespace TradeWright.GenerateManifest
     {
         static void Main(string[] args)
         {
+            CommandLineParser clp = new CommandLineParser(Environment.CommandLine, " ");
+
+            if (clp.get_IsSwitchSet("?") || clp.get_IsSwitchSet("HELP"))
+            {
+                ShowUsage();
+                return;
+            }
+            
+            string projectFile = clp.get_SwitchValue("PROJ");
+            string objectFile = clp.get_SwitchValue("BIN");
+            string description = clp.get_SwitchValue("DESC");
+            string outFile = clp.get_SwitchValue("OUT");
+
             var gen = new ManifestGenerator();
             MemoryStream data;
 
-            string projectFile =String.Empty;
-            string objectFile = String.Empty;
-            string description = String.Empty;
-            string outFile = String.Empty;
-
-            foreach (string arg in args)
-            {
-                if (arg.ToUpper().StartsWith("/PROJ:"))
-                {
-                    projectFile = arg.Substring("/PROJ:".Length);
-                }
-                else if (arg.ToUpper().StartsWith("/BIN:"))
-                {
-                    objectFile = arg.Substring("/BIN:".Length);
-                }
-                else if (arg.ToUpper().StartsWith("/DESC:"))
-                {
-                    description = arg.Substring("/DESC:".Length);
-                }
-                else if (arg.ToUpper().StartsWith("/OUT:"))
-                {
-                    outFile = arg.Substring("/OUT:".Length);
-                }
-            }
-
             if (projectFile != String.Empty)
             {
-                data =gen.GenerateFromProject(projectFile, true);
+                data = gen.GenerateFromProject(projectFile, true);
             }
             else if (objectFile != String.Empty)
             {
@@ -52,7 +40,8 @@ namespace TradeWright.GenerateManifest
             }
             else
             {
-                Console.WriteLine("Invalid arguments");
+                Console.WriteLine("Invalid arguments\n");
+                ShowUsage();
                 return;
             }
 
@@ -76,6 +65,18 @@ namespace TradeWright.GenerateManifest
             }
 
             data.Dispose();
+        }
+
+        private static void ShowUsage()
+        {
+            Console.Write(@"Creates a manifest for a dll or exe
+
+GenerateManifest {/Proj:<projectFileName> | /Bin:<exeOrDLlName>} 
+                 [/Desc:<description>] 
+                 [/Out:<outputManifestFilename>]
+
+
+");
         }
     }
 }
