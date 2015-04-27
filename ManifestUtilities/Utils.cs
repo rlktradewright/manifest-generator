@@ -9,22 +9,6 @@ namespace TradeWright.ManifestUtilities
 {
     internal static class Utils
     {
-        internal static string getFilenameFromFilePath(string filepath)
-        {
-            string pattern = @"^([^\\]+\\)*(([^\.]+\.)+[^\.]+)$";
-            var match = Regex.Match(filepath, pattern);
-            if (!match.Success) throw new InvalidOperationException(String.Format("Filename not found in string {0}", filepath));
-            return match.Groups[2].Value;
-        }
-
-        internal static string getPathFromFilePath(string filepath)
-        {
-            string pattern = @"^(([^\\]+\\)*)(([^\.]+\.)+[^\.]+)$";
-            var match = Regex.Match(filepath, pattern);
-            if (!match.Success) throw new InvalidOperationException(String.Format("Path not found in string {0}", filepath));
-            return match.Groups[1].Value;
-        }
-
         internal static string numericStringToHex(string value)
         {
             return int.Parse(value).ToString("X");
