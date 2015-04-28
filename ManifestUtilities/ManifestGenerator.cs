@@ -98,7 +98,7 @@ namespace TradeWright.ManifestUtilities
             using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling=NewLineHandling.Entitize }))
             { 
                 generateManifestXml(w,
-                                    Path.GetFileName(objectFilename),
+                                    Path.GetFileNameWithoutExtension(objectFilename),
                                     fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)),
                                     description,
                                     new Action[]
@@ -144,7 +144,7 @@ namespace TradeWright.ManifestUtilities
             using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
             {
                 generateManifestXml(w,
-                                    objectFilename,
+                                    Path.GetFileNameWithoutExtension(objectFilename),
                                     version,
                                     description,
                                     new Action[]
@@ -291,7 +291,7 @@ namespace TradeWright.ManifestUtilities
             return lineContent;
         }
 
-        private void generateManifestXml(XmlWriter w, string objectFilename, String version, string description, Action[] contentGenerators)
+        private void generateManifestXml(XmlWriter w, string assemblyName, String version, string description, Action[] contentGenerators)
         {
             w.WriteStartDocument(true);
             w.WriteStartElement("assembly", "urn:schemas-microsoft-com:asm.v1");
@@ -299,7 +299,7 @@ namespace TradeWright.ManifestUtilities
                 w.WriteAttributeString("xmlns","asmv3",null, "urn:schemas-microsoft-com:asm.v3");
 
                 w.WriteStartElement("assemblyIdentity");
-                    w.WriteAttributeString("name", objectFilename);
+                    w.WriteAttributeString("name", assemblyName);
                     w.WriteAttributeString("processorArchitecture", "X86");
                     w.WriteAttributeString("type", "win32");
                     w.WriteAttributeString("version", version);
@@ -437,16 +437,16 @@ namespace TradeWright.ManifestUtilities
 
         private static void generateDependentAssembly(string objectFilename, XmlWriter w)
         {
-            outputDependentAssembly(w, Path.GetFileName(objectFilename), fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)), "");
+            outputDependentAssembly(w, Path.GetFileNameWithoutExtension(objectFilename), fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)), "");
         }
 
-        private static void outputDependentAssembly(XmlWriter w, string Filename, String version, string publicKeyToken)
+        private static void outputDependentAssembly(XmlWriter w, string assemblyName, String version, string publicKeyToken)
         {
             w.WriteStartElement("dependency");
             w.WriteStartElement("dependentAssembly");
 
             w.WriteStartElement("assemblyIdentity");
-            w.WriteAttributeString("name", Filename);
+            w.WriteAttributeString("name", assemblyName);
             w.WriteAttributeString("processorArchitecture", "X86");
             w.WriteAttributeString("type", "win32");
             w.WriteAttributeString("version", version);
