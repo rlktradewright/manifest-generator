@@ -138,8 +138,8 @@ namespace TradeWright.ManifestUtilities
             var objectLines = new List<string>();
 
             processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref version, ref description);
-            objectFilePath = projectPath + @"\" + objectFilePath;
-
+            if (! String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
+            
             var output = new MemoryStream();
             using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
             {
@@ -170,10 +170,10 @@ namespace TradeWright.ManifestUtilities
         }
 
         private void processProjectFile(
-            string projectFilename, 
-            List<string> referenceLines, 
-            List<string> objectLines, 
-            ref string objectFilePath, 
+            string projectFilename,
+            List<string> referenceLines,
+            List<string> objectLines,
+            ref string objectFilePath,
             ref string objectFilename,
             ref string type,
             ref string version,
@@ -187,7 +187,7 @@ namespace TradeWright.ManifestUtilities
             {
                 while (!sr.EndOfStream)
                 {
-                    processLine(sr.ReadLine(), referenceLines, objectLines, ref objectFilePath,ref objectFilename, ref type,ref majorVersion, ref minorVersion, ref revisionVersion,ref description);
+                    processLine(sr.ReadLine(), referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref majorVersion, ref minorVersion, ref revisionVersion, ref description);
                 }
             }
             version = majorVersion.ToString() + "." + minorVersion.ToString() + ".0." + revisionVersion.ToString();
