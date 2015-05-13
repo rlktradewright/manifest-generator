@@ -12,9 +12,9 @@
 ''' </pre>
 '''
 ''' ie, there is a sequence of arguments or switches, separated by separator characters. The
-''' separator Character is specified in the call to <code>CreateCommandLineParser</code>.
+''' separator character is specified in the constructor.
 '''
-''' Arguments that contain the separator Character must be enclosed in double quotes. Double quotes
+''' Arguments that contain the separator character must be enclosed in double quotes. Double quotes
 ''' appearing within an argument must be repeated.
 '''
 ''' Switches have the following format:
@@ -25,10 +25,10 @@
 '''
 ''' ie the switch starts with a forward slash or a hyphen followed by an identifier, and
 ''' optionally followed by a colon and the switch Value. Switch identifiers are not
-''' case-sensitive. Switch values that contain the separator Character must be enclosed in
+''' case-sensitive. Switch values that contain the separator character must be enclosed in
 ''' double quotes. Double quotes appearing within a switch Value must be repeated.
 '''
-''' Examples (these examples use a space as the separator Character):
+''' Examples (these examples use a space as the separator character):
 ''' <pre>
 '''   anArgument -sw1 anotherArg -sw2:42
 ''' </pre>
@@ -37,26 +37,6 @@
 ''' </pre>
 ''' </remarks>
 Public NotInheritable Class CommandLineParser
-
-    '@================================================================================
-    ' Interfaces
-    '@================================================================================
-
-    '@================================================================================
-    ' Events
-    '@================================================================================
-
-    '@================================================================================
-    ' Constants
-    '@================================================================================
-
-    '@================================================================================
-    ' Enums
-    '@================================================================================
-
-    '@================================================================================
-    ' Types
-    '@================================================================================
 
     ''' <summary>
     ''' Contains details of a command line switch.
@@ -85,10 +65,6 @@ Public NotInheritable Class CommandLineParser
     Private mSep As String
     Private mCommandLine As String
 
-    '@================================================================================
-    ' Constructors
-    '@================================================================================
-
     Private Sub New()
     End Sub
 
@@ -99,23 +75,11 @@ Public NotInheritable Class CommandLineParser
     '''  this Value may be obtained using the <code>Command</code> function.</param>
     ''' <param name="separator">A single Character used as the separator between command line arguments.</param>
     ''' <remarks></remarks>
-    Public Sub New(ByVal commandLine As String, ByVal separator As String)
+    Public Sub New(commandLine As String, separator As String)
         mCommandLine = commandLine.Trim
         mSep = separator
         getArgs()
     End Sub
-
-    '@================================================================================
-    ' XXXX Interface Members
-    '@================================================================================
-
-    '@================================================================================
-    ' XXXX Event Handlers
-    '@================================================================================
-
-    '@================================================================================
-    ' Properties
-    '@================================================================================
 
     ''' <summary>
     ''' Gets the nth argument, where n is the value of the <paramref>i</paramref> parameter.
@@ -124,7 +88,7 @@ Public NotInheritable Class CommandLineParser
     ''' <value></value>
     ''' <returns>A String Value containing the nth argument, where n is the value of the <paramref>i</paramref> parameter.</returns>
     ''' <remarks>If the requested argument has not been supplied, an empty string is returned.</remarks>
-    Public ReadOnly Property Arg(ByVal i As Integer) As String
+    Public ReadOnly Property Arg(i As Integer) As String
         Get
             Try
                 Return mArgs(i)
@@ -178,7 +142,7 @@ Public NotInheritable Class CommandLineParser
     ''' <returns>If the specified switch was included, <code>True</code> is
     ''' returned. Otherwise <code>False</code> is returned.</returns>
     ''' <remarks></remarks>
-    Public ReadOnly Property IsSwitchSet(ByVal s As String) As Boolean
+    Public ReadOnly Property IsSwitchSet(s As String) As Boolean
         Get
             For Each switchEntry As SwitchEntry In mSwitches
                 If switchEntry.Switch.ToUpper = s.ToUpper Then Return True
@@ -209,7 +173,7 @@ Public NotInheritable Class CommandLineParser
     ''' <returns>A String containing the value for the specified switch.</returns>
     ''' <remarks>If the requested switch has not been supplied, or no value
     ''' was supplied for the switch, an empty string is returned.</remarks>
-    Public ReadOnly Property SwitchValue(ByVal s As String) As String
+    Public ReadOnly Property SwitchValue(s As String) As String
         Get
             For Each switchEntry As SwitchEntry In mSwitches
                 If switchEntry.Switch.ToUpper = s.ToUpper Then Return switchEntry.Value
@@ -218,116 +182,61 @@ Public NotInheritable Class CommandLineParser
         End Get
     End Property
 
-    '@================================================================================
-    ' Methods
-    '@================================================================================
 
-    '@================================================================================
-    ' Helper Functions
-    '@================================================================================
-
-
-    Private Function ContainsUnbalancedQuotes(ByVal inString As String) As Boolean
-        Dim pos = inString.Length - 2 ' exclude the last char
-        If pos = -1 Then Return False
-        pos = inString.LastIndexOf("""", pos)
-        Dim balanced = False
+    Private Function ContainsUnbalancedQuotes(inString As String) As Boolean
+        Dim pos = inString.LastIndexOf("""")
+        Dim unBalanced = False
         Do While pos <> -1
-            balanced = Not balanced
+            unBalanced = Not unBalanced
             If pos = 0 Then Exit Do
             pos = inString.LastIndexOf("""", pos - 1)
         Loop
-        Return balanced
+        Return unBalanced
     End Function
 
     Private Sub getArgs()
         If mCommandLine = "" Then Exit Sub
 
-        Dim inQuotedArg As Boolean
-        Dim unbalancedQuotes As Boolean
-        Dim quotedArg As String = ""
+        Dim unbalancedQuotes = False
 
+        Dim partialArg As String = String.Empty
         For Each argument In mCommandLine.Split({mSep}, StringSplitOptions.RemoveEmptyEntries)
-            argument = argument.Replace("""""", """")
-            If Not inQuotedArg Then
-                If argument = "" And mSep = "" Then
-                Else
-                    If argument.Substring(0, 1) = """" Or _
-                        ((argument.Substring(0, 1) = "/" Or argument.Substring(0, 1) = "-") And argument.IndexOf(":""") <> -1) _
-                    Then
-                        inQuotedArg = True
-                        quotedArg = ReplaceFirst(argument, """", "") ' Right$(argument, Len(argument) - 1)
-                        If ContainsUnbalancedQuotes(quotedArg) Then
-                            unbalancedQuotes = Not unbalancedQuotes
-                        End If
-                        If quotedArg.Substring(quotedArg.Length - 1, 1) = """" And Not unbalancedQuotes Then
-                            ' the ending quote is also in this arg
-                            inQuotedArg = False
-                            quotedArg = quotedArg.Substring(0, quotedArg.Length - 1)
-                            If quotedArg.Substring(0, 1) = "/" Or _
-                                quotedArg.Substring(0, 1) = "-" _
-                            Then
-                                setSwitch(quotedArg.Substring(1))
-                            Else
-                                mArgs.Add(quotedArg)
-                            End If
-                        Else
-                            If argument.Substring(argument.Length - 1) = """" Then
-                                unbalancedQuotes = Not unbalancedQuotes
-                            End If
-                        End If
-                    ElseIf (argument.Substring(0, 1) = "/" Or _
-                        argument.Substring(0, 1) = "-") And _
-                        argument.Length >= 2 _
-                    Then
-                        setSwitch(argument.Substring(1))
-                    Else
-                        mArgs.Add(argument)
-                    End If
-                End If
+            If argument = String.Empty And mSep = String.Empty Then
             Else
-                If ContainsUnbalancedQuotes(argument) Then
-                    unbalancedQuotes = Not unbalancedQuotes
-                End If
-                If argument.Substring(argument.Length - 1) = """" And Not unbalancedQuotes Then
-                    inQuotedArg = False
-                    quotedArg = quotedArg & mSep & argument.Substring(0, argument.Length - 1)
-                    If quotedArg.Substring(0, 1) = "/" Or _
-                        quotedArg.Substring(0, 1) = "-" _
-                    Then
-                        setSwitch(quotedArg.Substring(1))
-                    Else
-                        mArgs.Add(quotedArg)
-                    End If
-                Else
-                    If argument.Substring(argument.Length - 1) = """" Then
-                        unbalancedQuotes = Not unbalancedQuotes
-                    End If
-                    quotedArg = quotedArg & mSep & argument
+                partialArg = partialArg & IIf(String.IsNullOrEmpty(partialArg), String.Empty, mSep) & argument
+                unbalancedQuotes = ContainsUnbalancedQuotes(partialArg)
+                If Not unbalancedQuotes Then
+                    setSwitchOrArg(partialArg.Trim(""""))
+                    partialArg = String.Empty
                 End If
             End If
         Next
 
+        If Not String.IsNullOrEmpty(partialArg) Then
+            setSwitchOrArg(partialArg)
+        End If
     End Sub
 
-    Private Sub setSwitch(ByVal val As String)
+    Private Sub setSwitchOrArg(value As String)
+        If value.StartsWith("/") Or value.StartsWith("-") Then
+            setSwitch(value.Substring(1))
+        Else
+            mArgs.Add(value)
+        End If
+    End Sub
+
+    Private Sub setSwitch(val As String)
         Dim i = val.IndexOf(":")
         Dim switchEntry = New SwitchEntry
 
         If i >= 0 Then
             switchEntry.Switch = val.Substring(0, i).ToUpper
-            switchEntry.Value = val.Substring(i + 1, val.Length - (i + 1))
+            switchEntry.Value = val.Substring(i + 1)
         Else
             switchEntry.Switch = val.ToUpper
         End If
 
         mSwitches.Add(switchEntry)
     End Sub
-
-    Private Function ReplaceFirst(ByVal text As String, ByVal search As String, ByVal replace As String) As String
-        Dim pos = text.IndexOf(search)
-        If pos >= 0 Then Return text.Substring(0, pos) + replace + text.Substring(pos + search.Length)
-        Return text
-    End Function
 
 End Class
