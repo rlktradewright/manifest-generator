@@ -169,6 +169,87 @@ namespace TradeWright.ManifestUtilities
             return output;
         }
 
+        /// <summary>
+        /// Generates an assembly manifest for the set of Visual Basic 6 projects
+        /// specified in <code>projectFilenames</code>.
+        /// </summary>
+        /// 
+        /// <param name="assemblyName"></param>
+        /// The name of the (multi-file) assembly for which the manifest is to be generated.
+        /// <param name="version"></param>
+        /// The version number of the assembly, in major.minor.build.revision format.
+        /// <param name="description"></param>
+        /// A description of the assembly.
+        /// <param name="projectFilenames">
+        /// An <code>IEnumerable<string></code> of path-and-filenames of the required Visual Basic 6 projects.
+        /// </param>
+        ///
+        /// <returns>A <code>MemoryStream</code> object containing the manifest </returns>
+        /// 
+        public MemoryStream GenerateFromProjects(string assemblyName, string version, string description, IEnumerable<string> projectFilenames)
+        {
+            var objectFileNames = new List<string>();
+
+            foreach (string projectFilename in projectFilenames)
+            {
+                string projectPath = Path.GetDirectoryName(getCanonicalFilename(projectFilename));
+                string objectFilePath = String.Empty;
+                string objectFilename = String.Empty;
+                string projectVersion = String.Empty;
+                string type = String.Empty;
+                string projectDescription = String.Empty;
+
+                var referenceLines = new List<string>();
+                var objectLines = new List<string>();
+
+                processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref projectVersion, ref projectDescription);
+
+                if (!type.Equals("OleDll") && !type.Equals("Control")) throw new ArgumentException("Invalid project type: must be ActiveX Dll or ActiveX Control: " + projectFilename);
+
+                if (!String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
+                var fn = getCanonicalFilename(objectFilePath + @"\" + objectFilename);
+                objectFileNames.Add(fn);
+
+                referenceLines.ForEach(line => 
+                {
+                    fn = getCanonicalFilename(getReferenceFilename(line));
+                    if (!String.IsNullOrEmpty(fn))
+                    {
+                        if (!objectFileNames.Contains(fn))
+                        {
+                            objectFileNames.Add(fn);
+                        }
+                    }
+                });
+
+                objectLines.ForEach(line =>
+                {
+                    fn = getCanonicalFilename(getObjectFilename(line));
+                    if (!String.IsNullOrEmpty(fn))
+                    {
+                        if (!objectFileNames.Contains(fn))
+                        {
+                            objectFileNames.Add(fn);
+                        }
+                    }
+                });
+            }
+
+            var output = new MemoryStream();
+            using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
+            {
+                generateManifestXml(w,
+                                    assemblyName,
+                                    version,
+                                    description,
+                                    new Action[]
+                                    {
+                                        () => objectFileNames.ForEach(filename => generateTypesInfo(filename, w))
+                                    });
+            }
+            return output;
+        }
+
         private void processProjectFile(
             string projectFilename,
             List<string> referenceLines,
@@ -248,9 +329,7 @@ namespace TradeWright.ManifestUtilities
 
         private static void processObjectLine(string lineContent, string projectType, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w, bool useVersion6CommonControls)
         {
-            string guid = getGuid(lineContent);
-            string version = getObjectTypelibVersion(lineContent);
-            string objectFilename = getObjectFilename(guid, version);
+            string objectFilename = getObjectFilename(lineContent);
 
             generateDependentAssembly(objectFilename, w);
             if (projectType.Equals("Exe"))
@@ -261,30 +340,12 @@ namespace TradeWright.ManifestUtilities
 
         private static void processReferenceLine(string lineContent, string projectType, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w)
         {
-            string guid = getGuid(lineContent);
+            string referenceFilename = getReferenceFilename(lineContent);
 
-            // ignore the following because they don't meed to be side-by-sided
-            if (guid.Equals("{00020430-0000-0000-C000-000000000046}", StringComparison.CurrentCultureIgnoreCase)        /* stdole2 */
-                || guid.Equals("{420B2830-E718-11CF-893D-00A0C9054228}", StringComparison.CurrentCultureIgnoreCase)     /* scrrun */
-                || guid.Equals("{3F4DACA7-160D-11D2-A8E9-00104B365C9F}", StringComparison.CurrentCultureIgnoreCase)     /* vbscript */
-                || guid.Equals("{F5078F18-C551-11D3-89B9-0000F81FE221}", StringComparison.CurrentCultureIgnoreCase)     /* msxml6 */
-                || guid.Equals("{7C0FFAB0-CD84-11D0-949A-00A0C91110ED}", StringComparison.CurrentCultureIgnoreCase)     /* msdatsrc */
-                || guid.Equals("{F5078F18-C551-11D3-89B9-0000F81FE221}", StringComparison.CurrentCultureIgnoreCase)     /* msxml6 */
-                || guid.Equals("{2A75196C-D9EB-4129-B803-931327F72D5C}", StringComparison.CurrentCultureIgnoreCase)     /* msdao28 */
-                )
+            generateDependentAssembly(referenceFilename, w);
+            if (projectType.Equals("Exe"))
             {
-                return;
-            }
-
-            string referenceFilename = getReferenceFilename(guid);
-
-            if (!referenceFilename.EndsWith(".tlb"))
-            {
-                generateDependentAssembly(referenceFilename, w);
-                if (projectType.Equals("Exe"))
-                {
-                    extractExternalInterfaces(referenceFilename, ref interfaces);
-                }
+                extractExternalInterfaces(referenceFilename, ref interfaces);
             }
         }
 
@@ -320,6 +381,8 @@ namespace TradeWright.ManifestUtilities
 
         private void generateTypesInfo(string assemblyFilename, XmlWriter w)
         {
+            if (String.IsNullOrEmpty(assemblyFilename)) return;
+
             w.WriteStartElement("file");
             w.WriteAttributeString("name", Path.GetFileName(assemblyFilename));
             var tlia = new TLI.TLIApplication();
@@ -443,6 +506,8 @@ namespace TradeWright.ManifestUtilities
 
         private static void generateDependentAssembly(string objectFilename, XmlWriter w)
         {
+            if (String.IsNullOrEmpty(objectFilename)) return;
+
             outputDependentAssembly(w, Path.GetFileNameWithoutExtension(objectFilename), fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)), "");
         }
 
@@ -472,16 +537,25 @@ namespace TradeWright.ManifestUtilities
             return Utils.numericStringToHex(match.Groups[1].Value) + "." + Utils.numericStringToHex(match.Groups[2].Value);
         }
 
-        private static string getObjectFilename(string guid, string version)
+        private static string getObjectFilename(string lineContent)
         {
+            string guid = getGuid(lineContent);
+            string version = getObjectTypelibVersion(lineContent);
             return (string)Registry.GetValue(@"HKEY_CLASSES_ROOT\Typelib\" + guid + @"\" + version + @"\0\win32", "", "");
         }
 
-        private static string getReferenceFilename(string guid)
+        private static string getReferenceFilename(string lineContent)
         {
+            string guid = getGuid(lineContent);
+
+            if (!isGuidRelevant(guid))
+            {
+                return null;
+            }
+
             // Note that the Reference= lines in the project file may contain out-of-date
             // version information. So we look for the latest version
-            string Filename = String.Empty;
+            string filename = String.Empty;
             using (var regKey = Registry.ClassesRoot.OpenSubKey(@"Typelib\" + guid))
             {
                 foreach (string subKeyName in regKey.GetSubKeyNames())
@@ -489,13 +563,25 @@ namespace TradeWright.ManifestUtilities
                     using (var subKey = regKey.OpenSubKey(subKeyName + @"\0\win32"))
                     {
                         string s = (string)subKey.GetValue("");
-                        if (s != String.Empty) Filename = s;
+                        if (s != String.Empty) filename = s;
                     }
                 }
             }
 
-            if (Filename == String.Empty) throw new InvalidOperationException("Can't find Filename for guid " + guid);
-            return Filename;
+            if (filename == String.Empty) throw new InvalidOperationException("Can't find Filename for guid " + guid);
+            
+            if (filename.EndsWith(".tlb"))
+            {
+                filename = String.Empty;
+            }
+            
+            return filename;
+        }
+
+        private static string getCanonicalFilename(string filename)
+        {
+            if (String.IsNullOrEmpty(filename)) return String.Empty;
+            return (new FileInfo(filename)).FullName;
         }
 
         private static string getGuid(string line)
@@ -513,5 +599,17 @@ namespace TradeWright.ManifestUtilities
             return versionInfo.FileMajorPart + "." + versionInfo.FileMinorPart + "." + versionInfo.FileBuildPart + "." + versionInfo.FilePrivatePart;
         }
 
+        private static bool isGuidRelevant(string guid)
+        {
+            // ignore the following because they don't meed to be side-by-sided
+            return (!(guid.Equals("{00020430-0000-0000-C000-000000000046}", StringComparison.CurrentCultureIgnoreCase)        /* stdole2 */
+                || guid.Equals("{420B2830-E718-11CF-893D-00A0C9054228}", StringComparison.CurrentCultureIgnoreCase)     /* scrrun */
+                || guid.Equals("{3F4DACA7-160D-11D2-A8E9-00104B365C9F}", StringComparison.CurrentCultureIgnoreCase)     /* vbscript */
+                || guid.Equals("{F5078F18-C551-11D3-89B9-0000F81FE221}", StringComparison.CurrentCultureIgnoreCase)     /* msxml6 */
+                || guid.Equals("{7C0FFAB0-CD84-11D0-949A-00A0C91110ED}", StringComparison.CurrentCultureIgnoreCase)     /* msdatsrc */
+                || guid.Equals("{F5078F18-C551-11D3-89B9-0000F81FE221}", StringComparison.CurrentCultureIgnoreCase)     /* msxml6 */
+                || guid.Equals("{2A75196C-D9EB-4129-B803-931327F72D5C}", StringComparison.CurrentCultureIgnoreCase)     /* msdao28 */
+                ));
+        }
     }
 }

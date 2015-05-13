@@ -16,9 +16,14 @@ namespace TradeWright.GenerateManifest
         {
             internal string projectFile;
             internal string objectFile;
+            internal string assemblyInfo;
             internal string description;
             internal string outFile;
             internal bool useVersion6CommonControls;
+            internal string assemblyName;
+            internal string assemblyVersion;
+            internal string assemblyDescription;
+            internal IEnumerable<string> assemblyProjectFiles;
         }
         static int Main(string[] args)
         {
@@ -53,7 +58,7 @@ namespace TradeWright.GenerateManifest
 
         private static bool GetParameters(ref Parameters parameters)
         {
-            CommandLineParser clp = new CommandLineParser(Environment.CommandLine, " ");
+            var clp = new CommandLineParser(Environment.CommandLine, " ");
 
             if (clp.get_IsSwitchSet("?") || clp.get_IsSwitchSet("HELP"))
             {
@@ -63,16 +68,35 @@ namespace TradeWright.GenerateManifest
 
             parameters.projectFile = clp.get_SwitchValue("PROJ");
             parameters.objectFile = clp.get_SwitchValue("BIN");
+            parameters.assemblyInfo = clp.get_SwitchValue("ASS");
             parameters.description = clp.get_SwitchValue("DESC");
             parameters.outFile = clp.get_SwitchValue("OUT");
             parameters.useVersion6CommonControls = clp.get_IsSwitchSet("V6CC");
 
-            if ((String.IsNullOrEmpty(parameters.projectFile) && String.IsNullOrEmpty(parameters.objectFile)) ||
-                (!String.IsNullOrEmpty(parameters.projectFile) && !String.IsNullOrEmpty(parameters.objectFile)))
+            if ((String.IsNullOrEmpty(parameters.projectFile) && String.IsNullOrEmpty(parameters.objectFile) && String.IsNullOrEmpty(parameters.assemblyInfo)) ||
+                (!String.IsNullOrEmpty(parameters.projectFile) && !String.IsNullOrEmpty(parameters.objectFile) && !String.IsNullOrEmpty(parameters.assemblyInfo)))
             {
-                Console.WriteLine("Invalid arguments\n");
+                Console.WriteLine("Invalid arguments: only one of /Proj, /Bin and /Ass may be supplied\n");
                 ShowUsage();
                 return false;
+            }
+
+            if (!String.IsNullOrEmpty(parameters.assemblyInfo))
+            {
+                clp = new CommandLineParser(parameters.assemblyInfo, ",");
+                if (clp.NumberOfArgs != 4)
+                {
+                    Console.WriteLine("Invalid arguments\n");
+                    ShowUsage();
+                    return false;
+                }
+
+                parameters.assemblyName = clp.get_Arg(0);
+                parameters.assemblyVersion = clp.get_Arg(1);
+                parameters.assemblyDescription = clp.get_Arg(2);
+                parameters.assemblyProjectFiles = from f in LineReader(clp.get_Arg(3))
+                                                  where !String.IsNullOrEmpty(f) && !f.StartsWith("//")
+                                                  select f;
             }
 
             return true;
@@ -90,9 +114,25 @@ namespace TradeWright.GenerateManifest
             {
                 data = gen.GenerateFromObjectFile(parameters.objectFile, parameters.description);
             }
+            else if (parameters.assemblyName != String.Empty)
+            {
+                data = gen.GenerateFromProjects(parameters.assemblyName, parameters.assemblyVersion, parameters.assemblyDescription, parameters.assemblyProjectFiles);
+            }
             return data;
         }
 
+        private static IEnumerable<String> LineReader(String fileName)
+        {
+            String line;
+            using (var file = File.OpenText(fileName))
+            {
+                while ((line = file.ReadLine()) != null)
+                {
+                    yield return line.Trim();
+                }
+            }
+        }
+        
         private static void WriteManifestToConsole(MemoryStream data)
         {
             data.Position = 0;
@@ -119,14 +159,17 @@ namespace TradeWright.GenerateManifest
             Console.Write(@"Creates a manifest for a dll or exe
 
 GenerateManifest {/Proj:<projectFileName> [/V6CC] | 
-                  /Bin:<objectFilename> [/Desc:<description>]} 
+                  /Bin:<objectFilename> [/Desc:<description>] |
+                  /Ass:<name>,<version>,<description>,<projectsFileName>} 
                  [/Out:<outputManifestFilename>]
 
     /Proj        create manifest for project in <projectFileName>
     /V6CC        project uses Microsoft Common Controls Version 6 (ignored
                  if not an exe project)
     /Bin         create manifest for exe, dll or ocx in <objectFilename>
-    /Desc        used for the manifest description for an object file
+    /Ass         create multi-file assembly manifest for the projects 
+                 contained in <projectFilenames>
+    /Desc        used for the manifest description
     /Out         store the manifest in <outputManifestFilename>
     
 ");
