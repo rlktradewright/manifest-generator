@@ -160,7 +160,7 @@ namespace TradeWright.GenerateManifest
 
 GenerateManifest {/Proj:<projectFileName> [/V6CC] | 
                   /Bin:<objectFilename> [/Desc:<description>] |
-                  /Ass:<name>,<version>,<description>,<projectsFileName>} 
+                  /Ass:<name>,<version>,<description>,<projectsFileName>}
                  [/Out:<outputManifestFilename>]
 
     /Proj        create manifest for project in <projectFileName>
@@ -168,9 +168,12 @@ GenerateManifest {/Proj:<projectFileName> [/V6CC] |
                  if not an exe project)
     /Bin         create manifest for exe, dll or ocx in <objectFilename>
     /Ass         create multi-file assembly manifest for the projects 
-                 contained in <projectFilenames>
+                 contained in file <projectsFilename>
     /Desc        used for the manifest description
     /Out         store the manifest in <outputManifestFilename>
+
+<projectsFilename> contains one project filename per line. Blank lines
+and lines beginning // are ignored.
     
 ");
         }
