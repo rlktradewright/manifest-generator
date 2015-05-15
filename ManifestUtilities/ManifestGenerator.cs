@@ -95,15 +95,15 @@ namespace TradeWright.ManifestUtilities
         public MemoryStream GenerateFromObjectFile(string objectFilename, string description = "")
         {
             var output = new MemoryStream();
-            using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling=NewLineHandling.Entitize }))
-            { 
+            using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
+            {
                 generateManifestXml(w,
                                     Path.GetFileNameWithoutExtension(objectFilename),
                                     fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)),
                                     description,
                                     new Action[]
                                     {
-                                        () => generateTypesInfo(objectFilename, w)
+                                        () => generateTypesInfo(Path.GetFileName(objectFilename),getTypeLibInfo(objectFilename), w)
                                     }
                                     );
             }
@@ -156,12 +156,13 @@ namespace TradeWright.ManifestUtilities
                                         {
                                             if (!type.Equals("Exe")) 
                                             {
-                                                generateTypesInfo(objectFilePath + @"\" + objectFilename, w);
+                                                var filename = objectFilePath + @"\" + objectFilename;
+                                                generateTypesInfo(Path.GetFileName(filename),getTypeLibInfo(filename), w);
+                                                generateComInterfaceExternalProxyStubElements(interfaces, w);
                                             }
                                             else 
                                             {
                                                 if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
-                                                generateComInterfaceExternalProxyStubElements(interfaces, w);
                                             }
                                         }
                                     });
@@ -244,7 +245,17 @@ namespace TradeWright.ManifestUtilities
                                     description,
                                     new Action[]
                                     {
-                                        () => objectFileNames.ForEach(filename => generateTypesInfo(filename, w))
+                                        () => 
+                                        {
+                                            var interfaces = new Dictionary<string, InterfaceInfo>();
+                                            objectFileNames.ForEach(filename => 
+                                            {
+                                                var typeLibInfo = getTypeLibInfo(filename);
+                                                generateTypesInfo(Path.GetFileName(filename), typeLibInfo, w);
+                                                extractExternalInterfaces(typeLibInfo, ref interfaces);   
+                                            });
+                                            generateComInterfaceExternalProxyStubElements(interfaces, w);
+                                        }
                                     });
             }
             return output;
@@ -332,20 +343,21 @@ namespace TradeWright.ManifestUtilities
             string objectFilename = getObjectFilename(lineContent);
 
             generateDependentAssembly(objectFilename, w);
-            if (projectType.Equals("Exe"))
+            if (!projectType.Equals("Exe"))
             {
-                extractExternalInterfaces(objectFilename, ref interfaces);
+                extractExternalInterfaces(getTypeLibInfo(objectFilename), ref interfaces);
             }
         }
 
         private static void processReferenceLine(string lineContent, string projectType, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w)
         {
             string referenceFilename = getReferenceFilename(lineContent);
+            if (String.IsNullOrEmpty(referenceFilename)) return;
 
             generateDependentAssembly(referenceFilename, w);
-            if (projectType.Equals("Exe"))
+            if (!projectType.Equals("Exe"))
             {
-                extractExternalInterfaces(referenceFilename, ref interfaces);
+                extractExternalInterfaces(getTypeLibInfo(referenceFilename), ref interfaces);
             }
         }
 
@@ -379,18 +391,20 @@ namespace TradeWright.ManifestUtilities
             w.Flush();
         }
 
-        private void generateTypesInfo(string assemblyFilename, XmlWriter w)
+        private void generateTypesInfo(string objectFilename, TypeLibInfo typelibInfo, XmlWriter w)
         {
-            if (String.IsNullOrEmpty(assemblyFilename)) return;
-
             w.WriteStartElement("file");
-            w.WriteAttributeString("name", Path.GetFileName(assemblyFilename));
-            var tlia = new TLI.TLIApplication();
-            var typelibInfo = tlia.TypeLibInfoFromFile(assemblyFilename);
-
+            w.WriteAttributeString("name", objectFilename);
+            
             generateTypelibElement(typelibInfo, w);
             generateComClassElements(typelibInfo, w);
             w.WriteEndElement();
+        }
+
+        private static TypeLibInfo getTypeLibInfo(string objectFullFilename)
+        {
+            var tlia = new TLI.TLIApplication();
+            return tlia.TypeLibInfoFromFile(objectFullFilename);
         }
 
         private static void generateTypelibElement(TLI.TypeLibInfo typelibInfo, XmlWriter w)
@@ -461,11 +475,9 @@ namespace TradeWright.ManifestUtilities
             w.WriteEndElement();
         }
 
-        private static void extractExternalInterfaces(string filename, ref Dictionary<string, InterfaceInfo> interfaces)
+        private static void extractExternalInterfaces(TypeLibInfo typeLibInfo, ref Dictionary<string, InterfaceInfo> interfaces)
         {
-            var tlia = new TLI.TLIApplication();
-            var typelibInfo = tlia.TypeLibInfoFromFile(filename);
-            foreach (CoClassInfo c in typelibInfo.CoClasses)
+            foreach (CoClassInfo c in typeLibInfo.CoClasses)
             {
                 if (c.DefaultInterface != null)
                 {
@@ -506,8 +518,6 @@ namespace TradeWright.ManifestUtilities
 
         private static void generateDependentAssembly(string objectFilename, XmlWriter w)
         {
-            if (String.IsNullOrEmpty(objectFilename)) return;
-
             outputDependentAssembly(w, Path.GetFileNameWithoutExtension(objectFilename), fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)), "");
         }
 
