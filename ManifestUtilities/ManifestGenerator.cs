@@ -101,10 +101,7 @@ namespace TradeWright.ManifestUtilities
                                     Path.GetFileNameWithoutExtension(objectFilename),
                                     fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)),
                                     description,
-                                    new Action[]
-                                    {
-                                        () => generateTypesInfo(Path.GetFileName(objectFilename),getTypeLibInfo(objectFilename), w)
-                                    }
+                                    () => generateTypesInfo(Path.GetFileName(objectFilename),getTypeLibInfo(objectFilename), w)
                                     );
             }
             return output;
@@ -118,14 +115,23 @@ namespace TradeWright.ManifestUtilities
         /// <param name="projectFilename">
         /// The path and Filename of the required Visual Basic 6 project.
         /// </param>
+        /// 
         /// <param name="useVersion6CommonControls"
         /// Indicates whether version 6 of the Windows Common Controls are 
         /// to be used. 
         /// 
         /// If the program does not use the Windows Common 
         /// Controls then this parameter is ignored.
+        /// </param>
+        /// 
+        /// <param name="assemblyIds">
+        /// An <code>IEnumerable<string></code> of <![CDATA[<assemblyIdentity]]>
+        /// elements to be included in the manifest as depedent assemblies, rather 
+        /// than generating them from the dependencies identified in the project file.
+        /// </param>
+        /// 
         /// <returns></returns>
-        public MemoryStream GenerateFromProject(string projectFilename, bool useVersion6CommonControls)
+        public MemoryStream GenerateFromProject(string projectFilename, bool useVersion6CommonControls, IEnumerable<string> assemblyIds)
         {
             string projectPath = Path.GetDirectoryName(projectFilename);
             string objectFilePath = String.Empty;
@@ -138,8 +144,8 @@ namespace TradeWright.ManifestUtilities
             var objectLines = new List<string>();
 
             processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref version, ref description);
-            if (! String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
-            
+            if (!String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
+
             var output = new MemoryStream();
             using (var w = XmlWriter.Create(output, new XmlWriterSettings() { Encoding = Encoding.UTF8, Indent = true, IndentChars = "    ", NewLineHandling = NewLineHandling.Entitize }))
             {
@@ -148,21 +154,36 @@ namespace TradeWright.ManifestUtilities
                                     Path.GetFileNameWithoutExtension(objectFilename),
                                     version,
                                     description,
-                                    new Action[]
+                                    () =>
                                     {
-                                        () => referenceLines.ForEach(line => processReferenceLine(line, type, ref interfaces, w)),
-                                        () => objectLines.ForEach(line => processObjectLine(line, type, ref interfaces, w, useVersion6CommonControls)),
-                                        () => 
+                                        if (assemblyIds == null)
                                         {
-                                            if (!type.Equals("Exe")) 
+                                            referenceLines.ForEach(line => processReferenceLine(line, type, ref interfaces, w));
+                                        }
+
+                                        if (assemblyIds == null)
+                                        {
+                                            objectLines.ForEach(line => processObjectLine(line, type, ref interfaces, w, useVersion6CommonControls));
+                                        }
+
+                                        if (!type.Equals("Exe"))
+                                        {
+                                            if (assemblyIds == null)
                                             {
                                                 var filename = objectFilePath + @"\" + objectFilename;
-                                                generateTypesInfo(Path.GetFileName(filename),getTypeLibInfo(filename), w);
+                                                generateTypesInfo(Path.GetFileName(filename), getTypeLibInfo(filename), w);
                                                 generateComInterfaceExternalProxyStubElements(interfaces, w);
                                             }
-                                            else 
+                                        }
+                                        else
+                                        {
+                                            if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
+                                        }
+                                        if (assemblyIds != null)
+                                        {
+                                            foreach (string assemblyId in assemblyIds)
                                             {
-                                                if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
+                                                writeDependentAssembly(w, () => w.WriteRaw(assemblyId));
                                             }
                                         }
                                     });
@@ -218,7 +239,7 @@ namespace TradeWright.ManifestUtilities
                     {
                         if (!objectFileNames.Contains(fn))
                         {
-                            objectFileNames.Add(fn);
+                            //objectFileNames.Add(fn);
                         }
                     }
                 });
@@ -230,7 +251,7 @@ namespace TradeWright.ManifestUtilities
                     {
                         if (!objectFileNames.Contains(fn))
                         {
-                            objectFileNames.Add(fn);
+                            //objectFileNames.Add(fn);
                         }
                     }
                 });
@@ -243,19 +264,16 @@ namespace TradeWright.ManifestUtilities
                                     assemblyName,
                                     version,
                                     description,
-                                    new Action[]
+                                    () => 
                                     {
-                                        () => 
+                                        var interfaces = new Dictionary<string, InterfaceInfo>();
+                                        objectFileNames.ForEach(filename => 
                                         {
-                                            var interfaces = new Dictionary<string, InterfaceInfo>();
-                                            objectFileNames.ForEach(filename => 
-                                            {
-                                                var typeLibInfo = getTypeLibInfo(filename);
-                                                generateTypesInfo(Path.GetFileName(filename), typeLibInfo, w);
-                                                extractExternalInterfaces(typeLibInfo, ref interfaces);   
-                                            });
-                                            generateComInterfaceExternalProxyStubElements(interfaces, w);
-                                        }
+                                            var typeLibInfo = getTypeLibInfo(filename);
+                                            generateTypesInfo(Path.GetFileName(filename), typeLibInfo, w);
+                                            extractExternalInterfaces(typeLibInfo, ref interfaces);   
+                                        });
+                                        generateComInterfaceExternalProxyStubElements(interfaces, w);
                                     });
             }
             return output;
@@ -369,7 +387,7 @@ namespace TradeWright.ManifestUtilities
             return lineContent;
         }
 
-        private void generateManifestXml(XmlWriter w, string assemblyName, String version, string description, Action[] contentGenerators)
+        private void generateManifestXml(XmlWriter w, string assemblyName, String version, string description, Action contentGenerator)
         {
             w.WriteStartDocument(true);
             w.WriteStartElement("assembly", "urn:schemas-microsoft-com:asm.v1");
@@ -385,7 +403,7 @@ namespace TradeWright.ManifestUtilities
 
                 w.WriteElementString("description", description);
 
-                foreach (Action f in contentGenerators) if (f != null ) f.Invoke();
+                if (contentGenerator != null) contentGenerator.Invoke();
 
             w.WriteEndElement();
             w.Flush();
@@ -523,17 +541,23 @@ namespace TradeWright.ManifestUtilities
 
         private static void outputDependentAssembly(XmlWriter w, string assemblyName, String version, string publicKeyToken)
         {
+            writeDependentAssembly(w, () =>
+                {
+                    w.WriteStartElement("assemblyIdentity");
+                    w.WriteAttributeString("name", assemblyName);
+                    w.WriteAttributeString("processorArchitecture", "X86");
+                    w.WriteAttributeString("type", "win32");
+                    w.WriteAttributeString("version", version);
+                    if (publicKeyToken != String.Empty) w.WriteAttributeString("publicKeyToken", publicKeyToken);
+                    w.WriteEndElement();
+                });
+        }
+
+        private static void writeDependentAssembly(XmlWriter w, Action assemblyIdentityWriter)
+        {
             w.WriteStartElement("dependency");
             w.WriteStartElement("dependentAssembly");
-
-            w.WriteStartElement("assemblyIdentity");
-            w.WriteAttributeString("name", assemblyName);
-            w.WriteAttributeString("processorArchitecture", "X86");
-            w.WriteAttributeString("type", "win32");
-            w.WriteAttributeString("version", version);
-            if (publicKeyToken != String.Empty) w.WriteAttributeString("publicKeyToken", publicKeyToken);
-            w.WriteEndElement();
-
+            assemblyIdentityWriter.Invoke();
             w.WriteEndElement();
             w.WriteEndElement();
         }

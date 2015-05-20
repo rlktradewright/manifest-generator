@@ -24,6 +24,7 @@ namespace TradeWright.GenerateManifest
             internal string assemblyVersion;
             internal string assemblyDescription;
             internal IEnumerable<string> assemblyProjectFiles;
+            internal IEnumerable<string> dependentAssemblyIDs;
         }
         static int Main(string[] args)
         {
@@ -66,9 +67,19 @@ namespace TradeWright.GenerateManifest
                 return false;
             }
 
-            parameters.projectFile = clp.get_SwitchValue("PROJ");
-            parameters.objectFile = clp.get_SwitchValue("BIN");
-            parameters.assemblyInfo = clp.get_SwitchValue("ASS");
+            if (!getProjectFile(ref parameters, clp))
+            {
+                return false;
+            } 
+            else if (!getObjectFile(ref parameters, clp))
+            {
+                return false;
+            } 
+            else if (!getAssemblyDetails(ref parameters, ref clp))
+            {
+                return false;
+            } 
+        
             parameters.description = clp.get_SwitchValue("DESC");
             parameters.outFile = clp.get_SwitchValue("OUT");
             parameters.useVersion6CommonControls = clp.get_IsSwitchSet("V6CC");
@@ -81,8 +92,14 @@ namespace TradeWright.GenerateManifest
                 return false;
             }
 
-            if (!String.IsNullOrEmpty(parameters.assemblyInfo))
+            return true;
+        }
+
+        private static bool getAssemblyDetails(ref Parameters parameters, ref CommandLineParser clp)
+        {
+            if (clp.get_IsSwitchSet("ASS"))
             {
+                parameters.assemblyInfo = clp.get_SwitchValue("ASS");
                 clp = new CommandLineParser(parameters.assemblyInfo, ",");
                 if (clp.NumberOfArgs != 4)
                 {
@@ -94,11 +111,47 @@ namespace TradeWright.GenerateManifest
                 parameters.assemblyName = clp.get_Arg(0);
                 parameters.assemblyVersion = clp.get_Arg(1);
                 parameters.assemblyDescription = clp.get_Arg(2);
+                if (!File.Exists(clp.get_Arg(3)))
+                {
+                    Console.WriteLine("Invalid argument: file {0} does not exist", clp.get_Arg(3));
+                    return false;
+                }
                 parameters.assemblyProjectFiles = from f in LineReader(clp.get_Arg(3))
                                                   where !String.IsNullOrEmpty(f) && !f.StartsWith("//")
                                                   select f;
             }
+            return true;
+        }
 
+        private static bool getObjectFile(ref Parameters parameters, CommandLineParser clp)
+        {
+            if (clp.get_IsSwitchSet("BIN"))
+            {
+                parameters.objectFile = clp.get_SwitchValue("BIN");
+                if (!File.Exists(parameters.objectFile))
+                {
+                    Console.WriteLine("Invalid argument: file {0} does not exist", parameters.projectFile);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static bool getProjectFile(ref Parameters parameters, CommandLineParser clp)
+        {
+            if (clp.get_IsSwitchSet("PROJ"))
+            {
+                parameters.projectFile = clp.get_SwitchValue("PROJ");
+                if (!File.Exists(parameters.projectFile))
+                {
+                    Console.WriteLine("Invalid argument: file {0} does not exist", parameters.projectFile);
+                    return false;
+                }
+                if (File.Exists(parameters.projectFile + ".man"))
+                {
+                    parameters.dependentAssemblyIDs = LineReader(parameters.projectFile + ".man");
+                }
+            }
             return true;
         }
 
@@ -108,7 +161,7 @@ namespace TradeWright.GenerateManifest
             MemoryStream data = null;
             if (parameters.projectFile != String.Empty)
             {
-                data = gen.GenerateFromProject(parameters.projectFile, parameters.useVersion6CommonControls);
+                data = gen.GenerateFromProject(parameters.projectFile, parameters.useVersion6CommonControls, parameters.dependentAssemblyIDs);
             }
             else if (parameters.objectFile != String.Empty)
             {
@@ -156,24 +209,39 @@ namespace TradeWright.GenerateManifest
 
         private static void ShowUsage()
         {
-            Console.Write(@"Creates a manifest for a dll or exe
+//========1=========2=========3=========4=========5=========6=========7=========8
+            Console.Write(@"Creates a manifest for a dll or exe, or for a multifile assembly.
+                 
 
 GenerateManifest {/Proj:<projectFileName> [/V6CC] | 
                   /Bin:<objectFilename> [/Desc:<description>] |
                   /Ass:<name>,<version>,<description>,<projectsFileName>}
                  [/Out:<outputManifestFilename>]
 
-    /Proj        create manifest for project in <projectFileName>
-    /V6CC        project uses Microsoft Common Controls Version 6 (ignored
-                 if not an exe project)
-    /Bin         create manifest for exe, dll or ocx in <objectFilename>
-    /Ass         create multi-file assembly manifest for the projects 
-                 contained in file <projectsFilename>
-    /Desc        used for the manifest description
-    /Out         store the manifest in <outputManifestFilename>
+    /Proj        Creates a manifest for the Visual Basic 6 project in 
+                 <projectFileName>. If a file called <projectFileName>.man
+                 exists, then the manifest is generated with the dependent 
+                 assemblies specified in <projectFileName>.man, instead of
+                 taking the dependencies from the project file (see below 
+                 for further details).
+    /V6CC        Specifies that the project uses Microsoft Common Controls 
+                 Version 6 (ignored if not an exe project).
+    /Bin         Creates a manifest for the exe, dll or ocx in <objectFilename>.
+    /Ass         Creates a multi-file assembly manifest for the projects 
+                 contained in file <projectsFilename>.
+    /Desc        This is used for the manifest's description element.
+    /Out         Stores the manifest in <outputManifestFilename>. If not 
+                 supplied, the manifest is written to stdout.
 
-<projectsFilename> contains one project filename per line. Blank lines
-and lines beginning // are ignored.
+<projectFileName>.man 
+                 Contains details of one dependent assembly per line.
+                 Blank lines and lines beginning // are ignored. Each
+                 line is formatted as a complete <assemblyIdentity>
+                 element, including the final </assemblyIdentity> tag.
+
+<projectsFilename> 
+                 Contains one project filename per line. Blank lines
+                 and lines beginning // are ignored.
     
 ");
         }
