@@ -39,7 +39,7 @@ namespace TradeWright.GenerateManifest
 
                     if (parameters.outFile != String.Empty)
                     {
-                        parameters = WriteManifestToFile(parameters, data);
+                       WriteManifestToFile(parameters, data);
                     }
                     else
                     {
@@ -159,15 +159,15 @@ namespace TradeWright.GenerateManifest
         {
             var gen = new ManifestGenerator();
             MemoryStream data = null;
-            if (parameters.projectFile != String.Empty)
+            if (!String.IsNullOrEmpty(parameters.projectFile))
             {
                 data = gen.GenerateFromProject(parameters.projectFile, parameters.useVersion6CommonControls, parameters.dependentAssemblyIDs);
             }
-            else if (parameters.objectFile != String.Empty)
+            else if (!String.IsNullOrEmpty(parameters.objectFile))
             {
                 data = gen.GenerateFromObjectFile(parameters.objectFile, parameters.description);
             }
-            else if (parameters.assemblyName != String.Empty)
+            else if (!String.IsNullOrEmpty(parameters.assemblyName))
             {
                 data = gen.GenerateFromProjects(parameters.assemblyName, parameters.assemblyVersion, parameters.assemblyDescription, parameters.assemblyProjectFiles);
             }
@@ -198,13 +198,12 @@ namespace TradeWright.GenerateManifest
             reader.Close();
         }
 
-        private static Parameters WriteManifestToFile(Parameters parameters, MemoryStream data)
+        private static void WriteManifestToFile(Parameters parameters, MemoryStream data)
         {
             using (FileStream fs = new FileStream(parameters.outFile, FileMode.Create))
             {
                 data.WriteTo(fs);
             }
-            return parameters;
         }
 
         private static void ShowUsage()
