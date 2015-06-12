@@ -101,8 +101,12 @@ namespace TradeWright.ManifestUtilities
                                     Path.GetFileNameWithoutExtension(objectFilename),
                                     fileVersionFromFileVersionInfo(FileVersionInfo.GetVersionInfo(objectFilename)),
                                     description,
-                                    () => generateTypesInfo(Path.GetFileName(objectFilename),getTypeLibInfo(objectFilename), w)
-                                    );
+                                    () =>
+                                    {
+                                        var interfaces = new Dictionary<string, InterfaceInfo>();
+                                        generateForObjectFile(objectFilename, true, ref interfaces, w);
+                                        generateComInterfaceExternalProxyStubElements(interfaces, w);
+                                    });
             }
             return output;
         }
@@ -131,7 +135,7 @@ namespace TradeWright.ManifestUtilities
         /// </param>
         /// 
         /// <returns></returns>
-        public MemoryStream GenerateFromProject(string projectFilename, bool useVersion6CommonControls, IEnumerable<string> assemblyIds)
+        public MemoryStream GenerateFromProject(string projectFilename, bool useVersion6CommonControls, bool inlineExternalObjects, IEnumerable<string> assemblyIds)
         {
             string projectPath = Path.GetDirectoryName(projectFilename);
             string objectFilePath = String.Empty;
@@ -143,7 +147,7 @@ namespace TradeWright.ManifestUtilities
             var referenceLines = new List<string>();
             var objectLines = new List<string>();
 
-            processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref version, ref description);
+            analyseProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref version, ref description);
             if (!String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
 
             var output = new MemoryStream();
@@ -158,12 +162,12 @@ namespace TradeWright.ManifestUtilities
                                     {
                                         if (assemblyIds == null)
                                         {
-                                            referenceLines.ForEach(line => processReferenceLine(line, type, ref interfaces, w));
+                                            referenceLines.ForEach(line => generateForObjectFile(getReferenceFilename(line), inlineExternalObjects, ref interfaces, w));
                                         }
 
                                         if (assemblyIds == null)
                                         {
-                                            objectLines.ForEach(line => processObjectLine(line, type, ref interfaces, w, useVersion6CommonControls));
+                                            objectLines.ForEach(line => generateForObjectFile(getObjectFilename(line), inlineExternalObjects, ref interfaces, w));
                                         }
 
                                         if (!type.Equals("Exe"))
@@ -171,7 +175,7 @@ namespace TradeWright.ManifestUtilities
                                             if (assemblyIds == null)
                                             {
                                                 var filename = objectFilePath + @"\" + objectFilename;
-                                                generateTypesInfo(Path.GetFileName(filename), getTypeLibInfo(filename), w);
+                                                generateForObjectFile(objectFilePath + @"\" + objectFilename, true, ref interfaces, w);
                                                 generateComInterfaceExternalProxyStubElements(interfaces, w);
                                             }
                                         }
@@ -179,6 +183,7 @@ namespace TradeWright.ManifestUtilities
                                         {
                                             if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
                                         }
+
                                         if (assemblyIds != null)
                                         {
                                             foreach (string assemblyId in assemblyIds)
@@ -192,8 +197,8 @@ namespace TradeWright.ManifestUtilities
         }
 
         /// <summary>
-        /// Generates an assembly manifest for the set of Visual Basic 6 projects
-        /// specified in <code>projectFilenames</code>.
+        /// Generates an assembly manifest for the set of Visual Basic 6 projects, 
+        /// dlls or ocxs specified in <code>filenames</code>.
         /// </summary>
         /// 
         /// <param name="assemblyName"></param>
@@ -202,59 +207,32 @@ namespace TradeWright.ManifestUtilities
         /// The version number of the assembly, in major.minor.build.revision format.
         /// <param name="description"></param>
         /// A description of the assembly.
-        /// <param name="projectFilenames">
-        /// An <code>IEnumerable<string></code> of path-and-filenames of the required Visual Basic 6 projects.
+        /// <param name="filenames">
+        /// An <code>IEnumerable<string></code> of path-and-filenames of the required Visual Basic 6 projects, 
+        /// dlls or ocxs.
         /// </param>
         ///
         /// <returns>A <code>MemoryStream</code> object containing the manifest </returns>
         /// 
-        public MemoryStream GenerateFromProjects(string assemblyName, string version, string description, IEnumerable<string> projectFilenames)
+        public MemoryStream GenerateFromFiles(string assemblyName, string version, string description, bool inlineExternalObjects, IEnumerable<string> filenames)
         {
             var objectFileNames = new List<string>();
 
-            foreach (string projectFilename in projectFilenames)
+            foreach (string filename in filenames)
             {
-                string projectPath = Path.GetDirectoryName(getCanonicalFilename(projectFilename));
-                string objectFilePath = String.Empty;
-                string objectFilename = String.Empty;
-                string projectVersion = String.Empty;
-                string type = String.Empty;
-                string projectDescription = String.Empty;
-
-                var referenceLines = new List<string>();
-                var objectLines = new List<string>();
-
-                processProjectFile(projectFilename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref projectVersion, ref projectDescription);
-
-                if (!type.Equals("OleDll") && !type.Equals("Control")) throw new ArgumentException("Invalid project type: must be ActiveX Dll or ActiveX Control: " + projectFilename);
-
-                if (!String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
-                var fn = getCanonicalFilename(objectFilePath + @"\" + objectFilename);
-                objectFileNames.Add(fn);
-
-                referenceLines.ForEach(line => 
+                var extension = Path.GetExtension(filename).ToUpper();
+                if (extension == "DLL" || extension == "OCX")
                 {
-                    fn = getCanonicalFilename(getReferenceFilename(line));
-                    if (!String.IsNullOrEmpty(fn))
-                    {
-                        if (!objectFileNames.Contains(fn))
-                        {
-                            //objectFileNames.Add(fn);
-                        }
-                    }
-                });
-
-                objectLines.ForEach(line =>
+                    includeObjectFile(filename, objectFileNames);
+                }
+                else if (extension == "VBP")
                 {
-                    fn = getCanonicalFilename(getObjectFilename(line));
-                    if (!String.IsNullOrEmpty(fn))
-                    {
-                        if (!objectFileNames.Contains(fn))
-                        {
-                            //objectFileNames.Add(fn);
-                        }
-                    }
-                });
+                    processProject(filename, inlineExternalObjects, objectFileNames);
+                } 
+                else
+                {
+                    throw new ArgumentException("Invalid filename: must be a dll or an ocx file: " + filename);
+                }
             }
 
             var output = new MemoryStream();
@@ -269,9 +247,7 @@ namespace TradeWright.ManifestUtilities
                                         var interfaces = new Dictionary<string, InterfaceInfo>();
                                         objectFileNames.ForEach(filename => 
                                         {
-                                            var typeLibInfo = getTypeLibInfo(filename);
-                                            generateTypesInfo(Path.GetFileName(filename), typeLibInfo, w);
-                                            extractExternalInterfaces(typeLibInfo, ref interfaces);   
+                                            generateForObjectFile(filename, inlineExternalObjects, ref interfaces, w);
                                         });
                                         generateComInterfaceExternalProxyStubElements(interfaces, w);
                                     });
@@ -279,7 +255,46 @@ namespace TradeWright.ManifestUtilities
             return output;
         }
 
-        private void processProjectFile(
+        private void processProject(string filename, bool inlineExternalObjects, List<string> objectFileNames)
+        {
+            string projectPath = Path.GetDirectoryName(getCanonicalFilename(filename));
+            string objectFilePath = String.Empty;
+            string objectFilename = String.Empty;
+            string projectVersion = String.Empty;
+            string type = String.Empty;
+            string projectDescription = String.Empty;
+
+            var referenceLines = new List<string>();
+            var objectLines = new List<string>();
+
+            analyseProjectFile(filename, referenceLines, objectLines, ref objectFilePath, ref objectFilename, ref type, ref projectVersion, ref projectDescription);
+
+            if (!type.Equals("OleDll") && !type.Equals("Control")) throw new ArgumentException("Invalid project type: must be ActiveX Dll or ActiveX Control: " + filename);
+
+            if (!String.IsNullOrEmpty(projectPath)) objectFilePath = projectPath + @"\" + objectFilePath;
+            var fn = getCanonicalFilename(objectFilePath + @"\" + objectFilename);
+            objectFileNames.Add(fn);
+
+            if (inlineExternalObjects)
+            {
+                referenceLines.ForEach(line => includeObjectFile(getReferenceFilename(line), objectFileNames));
+                objectLines.ForEach(line => includeObjectFile(getObjectFilename(line), objectFileNames));
+            }
+        }
+
+        private static void includeObjectFile(string filename, List<string> objectFileNames)
+        {
+            var fn = getCanonicalFilename(filename);
+            if (!String.IsNullOrEmpty(fn))
+            {
+                if (!objectFileNames.Contains(fn))
+                {
+                    objectFileNames.Add(fn);
+                }
+            }
+        }
+
+        private void analyseProjectFile(
             string projectFilename,
             List<string> referenceLines,
             List<string> objectLines,
@@ -356,26 +371,19 @@ namespace TradeWright.ManifestUtilities
             }
         }
 
-        private static void processObjectLine(string lineContent, string projectType, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w, bool useVersion6CommonControls)
+        private static void generateForObjectFile(string objectFilename, bool inline, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w)
         {
-            string objectFilename = getObjectFilename(lineContent);
+            if (String.IsNullOrEmpty(objectFilename)) return;
 
-            generateDependentAssembly(objectFilename, w);
-            if (!projectType.Equals("Exe"))
+            if (inline)
             {
-                extractExternalInterfaces(getTypeLibInfo(objectFilename), ref interfaces);
-            }
-        }
-
-        private static void processReferenceLine(string lineContent, string projectType, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w)
-        {
-            string referenceFilename = getReferenceFilename(lineContent);
-            if (String.IsNullOrEmpty(referenceFilename)) return;
-
-            generateDependentAssembly(referenceFilename, w);
-            if (!projectType.Equals("Exe"))
+                var typeLibInfo = getTypeLibInfo(objectFilename);
+                generateTypesInfo(Path.GetFileName(objectFilename), typeLibInfo, w);
+                extractExternalInterfaces(typeLibInfo, ref interfaces);
+            } 
+            else
             {
-                extractExternalInterfaces(getTypeLibInfo(referenceFilename), ref interfaces);
+                generateDependentAssembly(objectFilename, w);
             }
         }
 
@@ -409,7 +417,7 @@ namespace TradeWright.ManifestUtilities
             w.Flush();
         }
 
-        private void generateTypesInfo(string objectFilename, TypeLibInfo typelibInfo, XmlWriter w)
+        private static void generateTypesInfo(string objectFilename, TypeLibInfo typelibInfo, XmlWriter w)
         {
             w.WriteStartElement("file");
             w.WriteAttributeString("name", objectFilename);
