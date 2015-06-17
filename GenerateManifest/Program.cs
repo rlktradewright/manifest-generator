@@ -89,7 +89,7 @@ namespace TradeWright.GenerateManifest
             parameters.description = clp.get_SwitchValue("DESC");
             parameters.outFile = clp.get_SwitchValue("OUT");
             parameters.useVersion6CommonControls = clp.get_IsSwitchSet("V6CC");
-            parameters.inlineExternalObjects = clp.get_IsSwitchSet("Inline");
+            parameters.inlineExternalObjects = clp.get_IsSwitchSet("INLINE");
 
             if ((String.IsNullOrEmpty(parameters.projectFile) && String.IsNullOrEmpty(parameters.objectFile) && String.IsNullOrEmpty(parameters.assemblyInfo)) ||
                 (!String.IsNullOrEmpty(parameters.projectFile) && !String.IsNullOrEmpty(parameters.objectFile) && !String.IsNullOrEmpty(parameters.assemblyInfo)))
@@ -107,23 +107,23 @@ namespace TradeWright.GenerateManifest
             if (clp.get_IsSwitchSet("ASS"))
             {
                 parameters.assemblyInfo = clp.get_SwitchValue("ASS");
-                clp = new CommandLineParser(parameters.assemblyInfo, ",");
-                if (clp.NumberOfArgs != 4)
+                var assClp = new CommandLineParser(parameters.assemblyInfo, ",");
+                if (assClp.NumberOfArgs != 4)
                 {
                     Console.WriteLine("Invalid arguments\n");
                     ShowUsage();
                     return false;
                 }
 
-                parameters.assemblyName = clp.get_Arg(0);
-                parameters.assemblyVersion = clp.get_Arg(1);
-                parameters.assemblyDescription = clp.get_Arg(2);
-                if (!File.Exists(clp.get_Arg(3)))
+                parameters.assemblyName = assClp.get_Arg(0);
+                parameters.assemblyVersion = assClp.get_Arg(1);
+                parameters.assemblyDescription = assClp.get_Arg(2);
+                if (!File.Exists(assClp.get_Arg(3)))
                 {
-                    Console.WriteLine("Invalid argument: file {0} does not exist", clp.get_Arg(3));
+                    Console.WriteLine("Invalid argument: file {0} does not exist", assClp.get_Arg(3));
                     return false;
                 }
-                parameters.assemblyFiles = from f in LineReader(clp.get_Arg(3))
+                parameters.assemblyFiles = from f in LineReader(assClp.get_Arg(3))
                                                   where !String.IsNullOrEmpty(f) && !f.StartsWith("//")
                                                   select f;
             }
@@ -269,8 +269,8 @@ GenerateManifest {/Proj:<projectFileName> [/V6CC] /Dep:<depFilename> |
                  project (see below for further details).
 
     /Inline      Specifies that <dependentAsssembly> elements are not to be
-                 be included for external references. Rather a <file> element
-                 containing the COM class information is to be generated fpr
+                 included for external references. Rather a <file> element
+                 containing the COM class information is to be generated for
                  each external reference. Ignored if a <projectFileName>.man
                  file exists. This switch is relevant only when /Proj or /Ass
                  are specified, and is ignored otherwise.
