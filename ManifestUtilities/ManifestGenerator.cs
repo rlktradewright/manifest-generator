@@ -128,6 +128,14 @@ namespace TradeWright.ManifestUtilities
         /// Controls then this parameter is ignored.
         /// </param>
         /// 
+        /// <param name="inlineExternalObjects">
+        /// Specifies that <dependentAsssembly> elements are not to be 
+        /// included for external references. Rather a <file> element
+        /// containing the COM class information is to be generated for
+        /// each external reference. Ignored if a <projectFileName>.man
+        /// file exists.
+        /// </param>
+        /// 
         /// <param name="assemblyIds">
         /// An <code>IEnumerable<string></code> of <![CDATA[<assemblyIdentity]]>
         /// elements to be included in the manifest as depedent assemblies, rather 
@@ -160,19 +168,16 @@ namespace TradeWright.ManifestUtilities
                                     description,
                                     () =>
                                     {
+                                        if (type.Equals("Exe") && useVersion6CommonControls)
+                                        {
+                                            outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
+                                        }
+
                                         if (assemblyIds == null)
                                         {
                                             referenceLines.ForEach(line => generateForObjectFile(getReferenceFilename(line), inlineExternalObjects, ref interfaces, w));
-                                        }
-
-                                        if (assemblyIds == null)
-                                        {
                                             objectLines.ForEach(line => generateForObjectFile(getObjectFilename(line), inlineExternalObjects, ref interfaces, w));
-                                        }
-
-                                        if (!type.Equals("Exe"))
-                                        {
-                                            if (assemblyIds == null)
+                                            if (!type.Equals("Exe"))
                                             {
                                                 var filename = objectFilePath + @"\" + objectFilename;
                                                 generateForObjectFile(objectFilePath + @"\" + objectFilename, true, ref interfaces, w);
@@ -180,11 +185,6 @@ namespace TradeWright.ManifestUtilities
                                             }
                                         }
                                         else
-                                        {
-                                            if (useVersion6CommonControls) outputDependentAssembly(w, "Microsoft.Windows.Common-Controls", "6.0.0.0", "6595b64144ccf1df");
-                                        }
-
-                                        if (assemblyIds != null)
                                         {
                                             foreach (string assemblyId in assemblyIds)
                                             {
@@ -201,12 +201,26 @@ namespace TradeWright.ManifestUtilities
         /// dlls or ocxs specified in <code>filenames</code>.
         /// </summary>
         /// 
-        /// <param name="assemblyName"></param>
+        /// <param name="assemblyName">
         /// The name of the (multi-file) assembly for which the manifest is to be generated.
-        /// <param name="version"></param>
+        /// </param>
+        /// 
+        /// <param name="version">
         /// The version number of the assembly, in major.minor.build.revision format.
-        /// <param name="description"></param>
+        /// </param>
+        /// 
+        /// <param name="description>
         /// A description of the assembly.
+        /// </param>
+        /// 
+        /// <param name="inlineExternalObjects">
+        /// Specifies that <dependentAsssembly> elements are not to be 
+        /// included for external references. Rather a <file> element
+        /// containing the COM class information is to be generated for
+        /// each external reference. Ignored if a <projectFileName>.man
+        /// file exists.
+        /// </param>
+        /// 
         /// <param name="filenames">
         /// An <code>IEnumerable<string></code> of path-and-filenames of the required Visual Basic 6 projects, 
         /// dlls or ocxs.
@@ -220,18 +234,20 @@ namespace TradeWright.ManifestUtilities
 
             foreach (string filename in filenames)
             {
+                if (! File.Exists(filename)) throw new ArgumentException(String.Format(@"Project file or object file does not exist: {0}", filename));
+
                 var extension = Path.GetExtension(filename).ToUpper();
-                if (extension == "DLL" || extension == "OCX")
+                if (extension == ".DLL" || extension == ".OCX")
                 {
                     includeObjectFile(filename, objectFileNames);
                 }
-                else if (extension == "VBP")
+                else if (extension == ".VBP")
                 {
                     processProject(filename, inlineExternalObjects, objectFileNames);
                 } 
                 else
                 {
-                    throw new ArgumentException("Invalid filename: must be a dll or an ocx file: " + filename);
+                    throw new ArgumentException(String.Format(@"Invalid filename: must be a VB6 project file, a dll or an ocx file: {0}", filename));
                 }
             }
 
@@ -374,6 +390,8 @@ namespace TradeWright.ManifestUtilities
         private static void generateForObjectFile(string objectFilename, bool inline, ref Dictionary<string, InterfaceInfo> interfaces, XmlWriter w)
         {
             if (String.IsNullOrEmpty(objectFilename)) return;
+
+            if (! File.Exists(objectFilename)) throw new ArgumentException(String.Format(@"Object file does not exist: {0}", objectFilename));
 
             if (inline)
             {
