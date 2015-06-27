@@ -447,8 +447,15 @@ namespace TradeWright.ManifestUtilities
 
         private static TypeLibInfo getTypeLibInfo(string objectFullFilename)
         {
-            var tlia = new TLI.TLIApplication();
-            return tlia.TypeLibInfoFromFile(objectFullFilename);
+            try
+            {
+                var tlia = new TLI.TLIApplication();
+                return tlia.TypeLibInfoFromFile(objectFullFilename);
+            }
+            catch (Exception e)
+            {
+                throw new InvalidOperationException("Error getting type library information - ensure that TLBINF32.DLL is installed and correctly registered");
+            }
         }
 
         private static void generateTypelibElement(TLI.TypeLibInfo typelibInfo, XmlWriter w)
