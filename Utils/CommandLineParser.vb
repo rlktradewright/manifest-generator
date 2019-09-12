@@ -246,8 +246,8 @@ Public NotInheritable Class CommandLineParser
     Private Function findSwitch(name As String) As Integer
         For i = 0 To mSwitches.Count - 1
             If If(mCaseSensitive,
-                    name.Equals(mSwitches(i).Name, StringComparison.CurrentCultureIgnoreCase),
-                    name.Equals(mSwitches(i).Name)) Then Return i
+                    name.Equals(mSwitches(i).Name),
+                    name.Equals(mSwitches(i).Name, StringComparison.CurrentCultureIgnoreCase)) Then Return i
         Next
         Return -1
     End Function
